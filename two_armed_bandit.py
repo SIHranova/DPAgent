@@ -4,16 +4,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import scipy.special as scp
-
 from itertools import product
 
+from misc import *
 from environment import MultiArmedBandit
 from agent import Agent
 from world import World
 from perception import HierarchicalPerception
 
+
 #%%
 np.random.seed(11)
+
 # Task setup parameters
 na = 2
 nb = 2
@@ -98,9 +100,40 @@ reward_generation_matrix =  np.array([[[0.9,0.1,0],
                                       [0.9,0.1,0],
                                       [0  ,0  ,1]]]).transpose(1,2,0)
 
+#%% Plot task setup
+
+'''Plot state transition matrix'''
+
+fig,axes = plt.subplots(1,2,figsize=(10,4))
+
+for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
+    ax.xaxis.tick_top()
+    sns.heatmap(state_transition_matrix[:,:,ai],annot=True,ax=ax, cbar=False)
+    ax.set_xticklabels(['L1','L2','M'],minor=False);
+    ax.set_yticklabels(['L1','L2','M'])
+    ax.set_title(title);
+
+'''Plot likelihood matrix'''
+
+fig, ax = plt.subplots()
+ax = sns.heatmap(prior_rewards[...,0],cbar=False,annot=True)
+ax.set_xticklabels(['L1','L2','M'],minor=False)
+ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
+ax.set_title('Reward generation beliefs')
 
 
-#%%
+'''Plot Environment reward generation matrix'''
+
+fig,axes = plt.subplots(1,2,figsize=(10,4))
+for ai, ax,title in zip([0,1], axes, ['Reward Regime 1', 'Reward Regime 2']):
+    ax.xaxis.tick_top()
+    sns.heatmap(reward_generation_matrix[:,:,ai],annot=True,ax=ax, cbar=False)
+    ax.set_xticklabels(['L1','L2','M'],minor=False)
+    ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
+    ax.set_title(title)
+
+
+#%% Run Simulations
 env = MultiArmedBandit(state_transition_matrix,
                        reward_generation_matrix, 
                        TAU=TAU,
@@ -138,41 +171,41 @@ agent = Agent(
 
 world = World(agent, env)
 
-
 world.simulate_experiment()
-for tau in range(TAU): 
-  print(tau,world.agent.rewards[tau,-1],world.agent.actions[tau],'\n', world.agent.perc.posterior_contexts[tau])
-
-#%%
 
 
-'''Plot state transition matrix'''
 
-fig,axes = plt.subplots(1,2,figsize=(10,4))
+#%% Simulation analysis
 
-for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
-    ax.xaxis.tick_top()
-    sns.heatmap(state_transition_matrix[:,:,ai],annot=True,ax=ax, cbar=False);
-    ax.set_xticklabels(['L1','L2','M'],minor=False);
-    ax.set_yticklabels(['L1','L2','M']);
-    ax.set_title(title);
+save_json(world, 'test.json')
+data = load_json('test.json')
 
-'''Plot likelihood matrix'''
+data = data.agent.perc
+post_policies = data.posterior_policies
+prior_policies = data.prior_policies
+like_policies = data.likelihood_policies
+post_context = data.posterior_contexts
+actions = data.actions
 
-fig, ax = plt.subplots()
-ax = sns.heatmap(prior_rewards[...,0],cbar=False,annot=True);
-ax.set_xticklabels(['L1','L2','M'],minor=False);
-ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
-ax.set_title('Reward generation beliefs')
+post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
+prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies, post_context)
+like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
+
+plt.style.use('default')
+
+plt.figure()
+plt.grid()
+plt.vlines(100,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+plt.scatter(np.arange(TAU), post_policies[:,0,1], label = 'posterior $\pi$')
+plt.scatter(np.arange(TAU), prior_policies[:,0,1], label = 'prior $\pi$')
+plt.scatter(np.arange(TAU), like_policies[:,0,1], label = 'like $\pi$')
+plt.legend()
 
 
-'''Plot Environment reward generation matrix'''
+plt.figure()
+plt.grid()
+plt.vlines(100,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+plt.scatter(np.arange(TAU), actions, label = 'action')
+plt.legend()
 
-fig,axes = plt.subplots(1,2,figsize=(10,4))
-for ai, ax,title in zip([0,1], axes, ['Reward Regime 1', 'Reward Regime 2']):
-    ax.xaxis.tick_top()
-    sns.heatmap(reward_generation_matrix[:,:,ai],annot=True,ax=ax, cbar=False);
-    ax.set_xticklabels(['L1','L2','M'],minor=False);
-    ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$']);
-    ax.set_title(title);
 

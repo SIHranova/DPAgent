@@ -181,7 +181,7 @@ class HierarchicalPerception():
         posterior_policies /= posterior_policies.sum(axis=0)
         
         # store in global log
-        self.likelihood_policies[tau,t] = likelihood
+        self.likelihood_policies[tau,t] = likelihood/likelihood.sum(axis=0)
         self.posterior_policies[tau,t] = posterior_policies
 
         # print('\n',tau,t)
