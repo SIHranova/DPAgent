@@ -13,16 +13,9 @@ class World():
 
     def simulate_experiment(self, TAU=None):
 
-        if TAU == None:
-            TAU = self.TAU
-
-        for tau in range(TAU):
+        for tau in range(self.TAU):
 
             for t in range(self.T):
-
-                if tau == 0 and t==1:
-                    pass
-
                 if t == 0:
                     action=None
                     state = self.environment.initialize_hidden_state(tau, starting_state=2)

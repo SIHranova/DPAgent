@@ -8,9 +8,9 @@ from itertools import product
 
 from misc import *
 from environment import MultiArmedBandit
-from agent import Agent
+from agent import NonParamAgent
 from world import World
-from perception import HierarchicalPerception
+from perception import NonParamHierarchicalPerception
 
 
 #%%
@@ -27,7 +27,7 @@ T = 2
 npi = na**(T-1)
 training_protocol = np.arange(2).repeat(100)
 TAU = training_protocol.size
-
+kappa = 0.2                         # Dirichlet Process concentration parameter
 
 # Agent setup Parameters
 h = 1
@@ -56,19 +56,15 @@ observation_generation_matrix = np.eye(ns)
 
 
 '''           define p(r|s,c)             '''
-
 counts = np.array([[1,1,1],
                    [1,1,1],
                    [1,1,100]])
 
-# counts = np.array([[10,1,1],
-#                    [1,10,1],
-#                    [1,1,100]])
-
 counts_prior_rewards = np.stack( [ counts for i in range(nc) ],axis=-1)
 
+
 if approx_pred_rew:
-  prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))   # checked mentally if broadcasting correct  
+  prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
   prior_rewards = scp.softmax(prior_rewards, axis=0)
 else:
   prior_rewards = counts_prior_rewards / counts_prior_rewards.sum(axis=0)
@@ -91,21 +87,23 @@ utility = np.array([0.99, 0.005,0.005])
 p = 0.9
 prior_context = np.array([p] + [1-p]*(nc-1))
 
+'''define context transition matrix p(c_t|c_)t-1))'''
+p = 0.8
+q = (1-p)/(nc-1)
+context_transition_matrix = np.eye(nc)*(1-2*q) + q
 
 '''   define Env reward generation matrix '''
 reward_generation_matrix =  np.array([[[0.9,0.1,0],
-                                      [0.1,0.9,0],
-                                      [0  ,0  ,1]],
-                                     [[0.1,0.9,0],
-                                      [0.9,0.1,0],
-                                      [0  ,0  ,1]]]).transpose(1,2,0)
+                                       [0.1,0.9,0],
+                                       [0  ,0  ,1]],
+                                      [[0.1,0.9,0],
+                                       [0.9,0.1,0],
+                                       [0  ,0  ,1]]]).transpose(1,2,0)
 
 #%% Plot task setup
 
 '''Plot state transition matrix'''
-
 fig,axes = plt.subplots(1,2,figsize=(10,4))
-
 for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
     ax.xaxis.tick_top()
     sns.heatmap(state_transition_matrix[:,:,ai],annot=True,ax=ax, cbar=False)
@@ -114,7 +112,6 @@ for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
     ax.set_title(title);
 
 '''Plot likelihood matrix'''
-
 fig, ax = plt.subplots()
 ax = sns.heatmap(prior_rewards[...,0],cbar=False,annot=True)
 ax.set_xticklabels(['L1','L2','M'],minor=False)
@@ -123,7 +120,6 @@ ax.set_title('Reward generation beliefs')
 
 
 '''Plot Environment reward generation matrix'''
-
 fig,axes = plt.subplots(1,2,figsize=(10,4))
 for ai, ax,title in zip([0,1], axes, ['Reward Regime 1', 'Reward Regime 2']):
     ax.xaxis.tick_top()
@@ -143,8 +139,9 @@ env = MultiArmedBandit(state_transition_matrix,
                        observation_generation_matrix=observation_generation_matrix,
                        no=no)
 
-perception = HierarchicalPerception(
+perception = NonParamHierarchicalPerception(
               state_transition_matrix,
+              context_transition_matrix,
               utility,
               policies,
               prior_rewards,
@@ -161,7 +158,7 @@ perception = HierarchicalPerception(
               observation_generation_matrix = observation_generation_matrix
             )
 
-agent = Agent(
+agent = NonParamAgent(
               state_transition_matrix,
               na,
               nc,
