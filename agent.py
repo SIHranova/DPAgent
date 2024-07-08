@@ -60,16 +60,15 @@ class NonParamAgent():
         #ok
         posterior_states = self.perc.update_beliefs_states(t, tau, reward, action, observation)
         
-        #ok
         likelihood_policies, posterior_policies = self.perc.update_beliefs_policies(t,tau)
 
-        #not ok?
         if t == 0 and tau != 0:
             prior_context = self.posterior_contexts[tau-1,-1]
             self.prior_contexts[tau] = self.context_transition_matrix.dot(prior_context)
             # in future add here context transition matrix
 
         prior_context = self.prior_contexts[tau,t]
+
         posterior_context = self.perc.update_beliefs_context(t,tau, likelihood_policies, posterior_policies, prior_context)
 
         if t > 0:
@@ -78,6 +77,7 @@ class NonParamAgent():
                                                                         posterior_policies,posterior_context)
 
         if (t == self.T-1 and tau < self.TAU-1):
+            #changed
             self.perc.update_beliefs_prior_policies(t, tau, posterior_context)
 
         

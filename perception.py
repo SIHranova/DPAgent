@@ -192,33 +192,6 @@ class NonParamHierarchicalPerception():
 
         return likelihood, posterior_policies
     
-
-    def update_beliefs_context_sarah(self,t,tau, likelihood_policies, posterior_policies, prior_context):
-        
-        if t>0:
-            alphas = self.prior_policies_counts[tau,t]
-
-            posterior_context = (posterior_policies * self.ln(likelihood_policies)).sum(axis=0) \
-                                - (posterior_policies * self.ln(posterior_policies)).sum(axis=0)\
-                                + (posterior_policies * scp.digamma(alphas)).sum(axis=0) - scp.digamma(alphas.sum(axis=0))\
-                                + self.ln(prior_context)                            
-        else:
-            posterior_context = self.ln(prior_context)
-
-        posterior_context = np.nan_to_num(scp.softmax(posterior_context))
-        self.posterior_contexts[tau,t] = posterior_context
-
-        # print('\n',tau,t,self.rewards[tau,t],self.actions[tau,t-1])
-        # print((posterior_policies * self.ln(likelihood_policies))[0])
-        # print((- (posterior_policies * self.ln(posterior_policies)))[0])
-        # print((+ posterior_policies * (scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0))))[0])
-        # (posterior_policies * scp.digamma(alphas)).sum(axis=0) - scp.digamma(alphas.sum(axis=0))
-        # print(self.ln(prior_context))
-        # print(+ (posterior_policies * scp.digamma(alphas)).sum(axis=0) - scp.digamma(alphas.sum(axis=0)))
-
-        return posterior_context
-    
-
     def update_beliefs_context(self,t,tau, likelihood_policies, posterior_policies, prior_context):
     
         # context-specific policy likelihood
@@ -273,23 +246,28 @@ class NonParamHierarchicalPerception():
 
     def update_beliefs_prior_rewards(self,t,tau,reward,posterior_states, posterior_policies, posterior_context):
         
+        # update reward counts beta
         post_state = np.einsum('spc,pc->sc', posterior_states[:,t,:,:], posterior_policies)
         state = np.argmax(post_state,axis=0)
 
         beta = self.prior_rewards_counts[tau,t-1]
         beta_prime = beta.copy()
-        beta_prime[reward,state,:] += posterior_context
-
+        beta_prime[reward,state,:-1] += posterior_context[:-1]
         self.prior_rewards_counts[tau,t] = beta_prime
 
+        assert np.all(beta[:,:,-1] == beta_prime[:,:,-1])
+
+        # normalize reward counts
         if self.approx_pred_rew:
             posterior_predictive_rewards = self.digamma_approximation(beta_prime)
         else:
             posterior_predictive_rewards = beta_prime / beta_prime.sum(axis=0) 
 
+        # carry over information for next trial
         if tau != self.TAU-1:
             if t == self.T-1:
-                self.prior_rewards[tau+1,:2] = posterior_predictive_rewards
+                #check if still works without index?
+                self.prior_rewards[tau+1] = posterior_predictive_rewards
                 self.prior_rewards_counts[tau+1,0] =  beta_prime
             else:
                 self.prior_rewards[tau,t+1] = posterior_predictive_rewards
@@ -302,24 +280,18 @@ class NonParamHierarchicalPerception():
         pol_ind = self.linear_ind(self.actions[tau])[0]
         alphas = self.prior_policies_counts[tau,t].copy()
         alphas_prime = alphas.copy()
-        alphas_prime[pol_ind,:] += posterior_context
+        alphas_prime[pol_ind,:-1] += posterior_context[:-1]
         self.prior_policies_counts[tau+1] = alphas_prime[None,:,:]
+        
+        assert np.all(self.prior_policies_counts[tau,:,-1] == self.prior_policies_counts[tau+1,:,-1])
 
         if self.approx_pred_pol:
             posterior_predictive_policies = self.digamma_approximation(alphas_prime)
         else:
             posterior_predictive_policies = alphas_prime / alphas_prime.sum(axis=0)
         
-
         self.prior_policies[tau+1] = posterior_predictive_policies[None,:,:]
         
-        # print('\n',tau, ', action: ', self.actions[tau][0])
-        # print(posterior_context)
-        # print(alphas_prime)
-        # print(posterior_predictive_policies)
-
-        if tau == 130:
-            a=0
 
 
 

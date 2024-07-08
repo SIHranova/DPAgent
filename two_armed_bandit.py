@@ -88,7 +88,7 @@ p = 0.9
 prior_context = np.array([p] + [1-p]*(nc-1))
 
 '''define context transition matrix p(c_t|c_)t-1))'''
-p = 0.8
+p = 0.99
 q = (1-p)/(nc-1)
 context_transition_matrix = np.eye(nc)*(1-2*q) + q
 
