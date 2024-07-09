@@ -57,7 +57,7 @@ class NonParamAgent():
 
     def update_beliefs(self, t, tau, state, reward, action, observation):
         
-        #ok
+        
         posterior_states = self.perc.update_beliefs_states(t, tau, reward, action, observation)
         
         likelihood_policies, posterior_policies = self.perc.update_beliefs_policies(t,tau)

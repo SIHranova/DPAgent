@@ -75,6 +75,9 @@ class NonParamHierarchicalPerception():
         self.prior_contexts = np.zeros([self.TAU, self.T, self.nc])
         self.prior_contexts[0,:] = prior_context[None,:]
 
+        self.prior_rewards_counts = np.zeros([self.TAU, self.T, self.nr, self.ns, self.nc])
+        self.prior_rewards_counts[0,0] = counts_prior_rewards
+
         self.posterior_contexts = np.zeros([self.TAU, self.T, self.nc])
 
 
@@ -86,6 +89,12 @@ class NonParamHierarchicalPerception():
     def linear_ind(self, array):
         array = array[:,None].T if array.shape[-1] == 1 else array.T
         return np.ravel_multi_index(array, [self.na]*(self.T-1))
+
+
+    def expand_dimension(self, array):
+        empty_dimension = np.empty(array.shape[:-1])
+        empty_dimension[:] = np.nan
+        array = np.append(array, empty_dimension[...,None], axis=-1)
 
 
     def digamma_approximation(self, counts):
@@ -192,6 +201,7 @@ class NonParamHierarchicalPerception():
 
         return likelihood, posterior_policies
     
+
     def update_beliefs_context(self,t,tau, likelihood_policies, posterior_policies, prior_context):
     
         # context-specific policy likelihood
@@ -293,7 +303,11 @@ class NonParamHierarchicalPerception():
         self.prior_policies[tau+1] = posterior_predictive_policies[None,:,:]
         
 
-
+    def update_beliefs_prior_contexts(self,t,tau, posterior_context):
+        gammas = self.prior_contexts_counts[tau,t].copy()
+        gammas_prime = gammas.copy()
+        gammas_prime += posterior_context
+        self.prior_policies_counts[tau+1] = alphas_prime[None,:,:]
 
 
 class HierarchicalPerception():
