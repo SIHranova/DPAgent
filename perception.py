@@ -6,23 +6,24 @@ import scipy.special as scp
 class NonParamHierarchicalPerception():
 
     def __init__(self,
-                 state_transition_matrix,            # p(s_t|s_t-1)
-                 context_transition_matrix,          # p(c_t|c_t-1)
-                 utility,                            # pre-given desirability of observations
-                 policies,                           # all possible policies given environment setup
-                 prior_rewards,                      # p(s_t|s_t-1)
-                 counts_prior_rewards,               # parameters beta of p(phi|beta)
-                 prior_policies,                     # p(pi|theta)
-                 counts_prior_policies,              # parameters alpha of p(theta|alpha)
-                 prior_states,                       # initial p(s|c)
-                 prior_context,                      # initial p(c)
-                 na,                                 #
-                 nc,                                 #
-                 env,                                #
-                 approx_pred_pol = True,             # use digamma approx when updating policy prior p(pi|c)
-                 approx_pred_rew = True,             # use digamma approx when updating reward posterir p(r|s,c)
-                 observation_generation_matrix=None, # p(o_t|s_t)
-                 kappa = 0.2                         # concentration parameter for Dirichlet Process
+                 state_transition_matrix,              # p(s_t|s_t-1)
+                 context_transition_matrix,            # p(c_t|c_t-1)
+                 observation_generation_matrix,        # p(o_t|s_t)
+                 utility,                              # pre-given desirability of observations
+                 policies,                             # all possible policies given environment setup
+                 prior_rewards,                        # p(s_t|s_t-1)
+                 counts_prior_rewards,                 # hyperparameters beta of p(phi;beta)
+                 prior_policies,                       # p(pi|theta)
+                 counts_prior_policies,                # parameters alpha of p(theta;alpha)
+                 prior_states,                         # initial p(s|c)
+                 counts_prior_context,                 # hyperparameters gamma p(eta;gamma); symmetric for known contexts and kappa for trailing context dimension
+                 prior_context,                        # initial p(c)
+                 na,                                   #
+                 nc,                                   #
+                 env,                                  #
+                 approx_pred_pol = True,               # use digamma approx when updating policy prior p(pi|c)
+                 approx_pred_rew = True,               # use digamma approx when updating reward posterir p(r|s,c)
+                 kappa = 0.2,                          # concentration parameter for Dirichlet Process
                 ):
         
  
@@ -46,6 +47,7 @@ class NonParamHierarchicalPerception():
         self.nr = env.nr
         self.nc = nc
         self.ns = env.ns
+        self.rewards = env.rewards
 
         # derived assignments
         self.npi = policies.shape[0]
@@ -61,25 +63,28 @@ class NonParamHierarchicalPerception():
 
         self.prior_policies_counts = np.zeros([self.TAU, self.T, self.npi, self.nc])
         self.prior_policies_counts[0,:] = counts_prior_policies[None,:,:]
+        self.h =  1/np.unique(counts_prior_policies)[0]
+        assert(np.unique(counts_prior_policies).size == 1)                                      # assumes all policies initialized the same!
+
         
         self.prior_rewards = np.zeros([self.TAU, self.T, self.nr, self.ns, self.nc])
-        self.prior_rewards[0,:2] = prior_rewards[None,:,:,:]
+        self.prior_rewards[0] = prior_rewards[None,:,:,:] 
 
         self.prior_rewards_counts = np.zeros([self.TAU, self.T, self.nr, self.ns, self.nc])
-        self.prior_rewards_counts[0,0] = counts_prior_rewards
+        self.prior_rewards_counts[0] = counts_prior_rewards[None,:,:,:]
 
         self.forward_norms = np.zeros([self.TAU, self.T, self.T+1, self.npi, self.nc])
         self.likelihood_policies = np.zeros([self.TAU, self.T, self.npi, self.nc])
         self.posterior_policies = np.zeros([self.TAU, self.T, self.npi, self.nc])
         
-        self.prior_contexts = np.zeros([self.TAU, self.T, self.nc])
-        self.prior_contexts[0,:] = prior_context[None,:]
+        self.prior_context = np.zeros([self.TAU, self.T, self.nc])
+        self.prior_context[0,:] = prior_context[None,:]
 
-        self.prior_rewards_counts = np.zeros([self.TAU, self.T, self.nr, self.ns, self.nc])
-        self.prior_rewards_counts[0,0] = counts_prior_rewards
+        self.prior_context_counts = np.zeros([self.TAU, self.T, self.nc])
+        self.prior_context_counts[0,:] = counts_prior_context[None,:]
 
-        self.posterior_contexts = np.zeros([self.TAU, self.T, self.nc])
-
+        self.posterior_context = np.zeros([self.TAU, self.T, self.nc])
+        
 
     def ln(self, array):
         array[array==0] = 1e-20
@@ -95,7 +100,18 @@ class NonParamHierarchicalPerception():
         empty_dimension = np.empty(array.shape[:-1])
         empty_dimension[:] = np.nan
         array = np.append(array, empty_dimension[...,None], axis=-1)
+        return array
 
+
+    def open_new_context(self):
+        self.prior_policies_counts = self.expand_dimension(self.prior_policies_counts)
+        self.prior_policies = self.expand_dimension(self.prior_policies)
+        
+        self.prior_context_counts = self.expand_dimension(self.prior_context_counts)
+        self.prior_context = self.expand_dimension(self.prior_context)
+
+        self.prior_rewards_counts = self.expand_dimension(self.prior_rewards_counts)
+        self.prior_rewards = self.expand_dimension(self.prior_rewards)
 
     def digamma_approximation(self, counts):
         return scp.softmax(scp.digamma(counts) - scp.digamma(counts.sum(axis=0)),axis=0)
@@ -185,8 +201,6 @@ class NonParamHierarchicalPerception():
         self.fwd_norms[-1,:,:] = post_norm[-1,:,:]
         self.forward_norms[tau,t] = self.fwd_norms
         self.posterior_states[tau,t,:,:,:,:] = post
-
-        return post
     
 
     def update_beliefs_policies(self,t,tau):
@@ -203,112 +217,118 @@ class NonParamHierarchicalPerception():
     
 
     def update_beliefs_context(self,t,tau, likelihood_policies, posterior_policies, prior_context):
-    
-        # context-specific policy likelihood
-        if t> 0:
+        
+        if tau != 0:                                 # first inferred context should be 
+            prior_context[self.k+1] = self.kappa / (tau + self.kappa)
+
+        if t>0:
             alphas = self.prior_policies_counts[tau,t]
 
             # posterior_context =   self.ln(likelihood_policies) \
             #                      - self.ln(posterior_policies)\
             #                      + scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0))
             # posterior_context = (posterior_policies*posterior_context).sum(axis=0) + self.ln(prior_context)                            
-            outcome_surprise = (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
-            policy_entropy =  -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
-            policy_surprise = (posterior_policies * (scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0)))).sum(axis=0)
+            outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
+            policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
+            policy_surprise  =  (posterior_policies * (scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0)))).sum(axis=0)
 
             posterior_context = outcome_surprise + policy_entropy + policy_surprise + self.ln(prior_context)
-
-
-            print('\n',tau, self.rewards[tau,t], self.actions[tau][0])
-            print('outcome_surprise')
-            print(outcome_surprise.round(3))
-            print('policy_entropy')
-            print(policy_entropy.round(3))
-            print('policy_surprise')
-            print(policy_surprise.round(3))
-            print('prior_context')
-            print(self.ln(prior_context).round(3))
-            print('posterior context')
-            print(np.nan_to_num(scp.softmax(posterior_context)))
-
-            if tau == 130:
-                a=0
 
         else:
             posterior_context = self.ln(prior_context)
 
         posterior_context = np.nan_to_num(scp.softmax(posterior_context))
-        self.posterior_contexts[tau,t] = posterior_context
-        
-        # if t == 0:
-        #     print('\n',tau,t, self.rewards[tau,t], None)
-        # else:
-        #     print('\n',tau,t, self.rewards[tau,t], self.actions[tau])
-
-        # print(prior_context)
-        # print(posterior_context)
-        
-        if tau == 100:
-            a=0
+        self.posterior_context[tau,t] = posterior_context
 
         return posterior_context
     
 
-    def update_beliefs_prior_rewards(self,t,tau,reward,posterior_states, posterior_policies, posterior_context):
+    def update_beliefs_prior_rewards(self,tau):
         
-        # update reward counts beta
-        post_state = np.einsum('spc,pc->sc', posterior_states[:,t,:,:], posterior_policies)
-        state = np.argmax(post_state,axis=0)
-
-        beta = self.prior_rewards_counts[tau,t-1]
+        beta = self.prior_rewards_counts[tau,0]
         beta_prime = beta.copy()
-        beta_prime[reward,state,:-1] += posterior_context[:-1]
-        self.prior_rewards_counts[tau,t] = beta_prime
 
-        assert np.all(beta[:,:,-1] == beta_prime[:,:,-1])
+        for t in range(1,self.T):
+        
+            posterior_states = self.posterior_states[tau,t]
+            posterior_policies = self.posterior_policies[tau,t]
+            posterior_context = self.posterior_context[tau,t]
 
-        # normalize reward counts
-        if self.approx_pred_rew:
-            posterior_predictive_rewards = self.digamma_approximation(beta_prime)
-        else:
-            posterior_predictive_rewards = beta_prime / beta_prime.sum(axis=0) 
+            if self.k < self.nc:
+                posterior_context = posterior_context[:-1]/posterior_context[:-1].sum() 
+            elif not beta_prime[0,0,-1] is np.nan:
+                beta_prime[:,:,-1] = self.prior_rewards_counts[0,0][:,:,0]
 
-        # carry over information for next trial
-        if tau != self.TAU-1:
-            if t == self.T-1:
-                #check if still works without index?
-                self.prior_rewards[tau+1] = posterior_predictive_rewards
-                self.prior_rewards_counts[tau+1,0] =  beta_prime
+            reward = self.rewards[tau,t]
+
+            post_state = np.einsum('spc,pc->sc', posterior_states[:,t,:,:], posterior_policies)
+            state = np.argmax(post_state,axis=0)   #deterministic state update
+
+            beta_prime[reward,state,:-1] += posterior_context[:-1]
+            self.prior_rewards_counts[tau,t] = beta_prime
+
+            # normalize reward counts
+            if self.approx_pred_rew:
+                posterior_predictive_rewards = self.digamma_approximation(beta_prime)
             else:
-                self.prior_rewards[tau,t+1] = posterior_predictive_rewards
+                posterior_predictive_rewards = beta_prime / beta_prime.sum(axis=0) 
+
+            # carry over information for next trial
+            if tau != self.TAU-1:
+                if t == self.T-1:
+                    #check if still works without index?
+                    self.prior_rewards[tau+1] = posterior_predictive_rewards
+                    self.prior_rewards_counts[tau+1,0] =  beta_prime
+                else:
+                    self.prior_rewards[tau,t+1] = posterior_predictive_rewards
 
         return posterior_predictive_rewards
 
 
     def update_beliefs_prior_policies(self,t,tau, posterior_context):
-        
+
         pol_ind = self.linear_ind(self.actions[tau])[0]
         alphas = self.prior_policies_counts[tau,t].copy()
         alphas_prime = alphas.copy()
-        alphas_prime[pol_ind,:-1] += posterior_context[:-1]
+        
+        if self.k < self.nc:
+            posterior_context = posterior_context[:-1] / posterior_context[:-1].sum()
+        else:
+            alphas_prime[:,-1] = 1/self.h
+        
+        alphas_prime[pol_ind,:self.k] += posterior_context
+
         self.prior_policies_counts[tau+1] = alphas_prime[None,:,:]
         
-        assert np.all(self.prior_policies_counts[tau,:,-1] == self.prior_policies_counts[tau+1,:,-1])
+        assert np.all(self.prior_policies_counts[tau+1,:,-1] == 1/self.h)  # confirm empty context has no habit bias; perhaps talk about how to initialize psychologically? 
 
         if self.approx_pred_pol:
+            # integral_{theta} q(theta) ln p(pi|c,theta;alpha') 
             posterior_predictive_policies = self.digamma_approximation(alphas_prime)
         else:
+            # integral_{theta} q(theta) p(pi|c,theta;alpha')
             posterior_predictive_policies = alphas_prime / alphas_prime.sum(axis=0)
         
         self.prior_policies[tau+1] = posterior_predictive_policies[None,:,:]
         
 
-    def update_beliefs_prior_contexts(self,t,tau, posterior_context):
-        gammas = self.prior_contexts_counts[tau,t].copy()
-        gammas_prime = gammas.copy()
-        gammas_prime += posterior_context
-        self.prior_policies_counts[tau+1] = alphas_prime[None,:,:]
+    def update_beliefs_prior_context(self,t,tau, posterior_context):
 
+        posterior_context = np.array([0.2,0.8])
+        gamma = self.prior_context_counts[tau,t].copy()
+        gamma_prime = gamma.copy()
+
+        if self.k < self.nc:
+            posterior_context = posterior_context[:-1]/posterior_context[:-1].sum() 
+        else:
+            gamma_prime[-2:] = np.array([1,self.kappa])
+            
+        gamma_prime[:self.k] += posterior_context
+        self.prior_context_counts[tau+1] = gamma_prime[None,:]
+
+        posterior_predictive_context = self.digamma_approximation(gamma_prime)
+        self.prior_context[tau+1] = posterior_predictive_context[None,:]
+        
 
 class HierarchicalPerception():
 
@@ -374,8 +394,8 @@ class HierarchicalPerception():
         self.likelihood_policies = np.zeros([self.TAU, self.T, self.npi, self.nc])
         self.posterior_policies = np.zeros([self.TAU, self.T, self.npi, self.nc])
         
-        self.prior_contexts = np.zeros([self.TAU, self.T, self.nc])
-        self.prior_contexts[0,:] = prior_context[None,:]
+        self.prior_context = np.zeros([self.TAU, self.T, self.nc])
+        self.prior_context[0,:] = prior_context[None,:]
         self.posterior_contexts = np.zeros([self.TAU, self.T, self.nc])
 
 

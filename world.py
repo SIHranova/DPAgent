@@ -4,8 +4,8 @@ class World():
 
     def __init__(self, agent, environment,training_protocol=None):
 
-        self.agent = agent
         self.environment = environment
+        self.agent = agent
         self.TAU = environment.TAU
         self.T = environment.T
         self.nr = environment.nr

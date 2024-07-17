@@ -84,8 +84,12 @@ utility = np.array([0.99, 0.005,0.005])
 
 
 '''       define prior over contexts p(c) '''
+
+counts_prior_context = np.array([0]*(nc-1) + [kappa])
+
 p = 0.9
-prior_context = np.array([p] + [1-p]*(nc-1))
+prior_context = np.array([p] + [1-p]*(nc-1))             # this is different than the normalized counts over context!
+
 
 '''define context transition matrix p(c_t|c_)t-1))'''
 p = 0.99
@@ -142,6 +146,7 @@ env = MultiArmedBandit(state_transition_matrix,
 perception = NonParamHierarchicalPerception(
               state_transition_matrix,
               context_transition_matrix,
+              observation_generation_matrix,
               utility,
               policies,
               prior_rewards,
@@ -149,13 +154,13 @@ perception = NonParamHierarchicalPerception(
               prior_policies,
               counts_prior_policies,
               prior_states,
+              counts_prior_context,
               prior_context,
               na,
               nc,
               env,
               approx_pred_pol = approx_pred_pol,
               approx_pred_rew = approx_pred_rew,
-              observation_generation_matrix = observation_generation_matrix
             )
 
 agent = NonParamAgent(

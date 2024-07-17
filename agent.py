@@ -32,60 +32,71 @@ class NonParamAgent():
         #inherited from perception class
         self.perc = perception
         self.kappa = perception.kappa
-        self.prior_rewards = perception.prior_rewards
-        self.prior_rewards_counts = perception.prior_rewards_counts
+
+        # self.prior_rewards = perception.prior_rewards
+        # self.prior_rewards_counts = perception.prior_rewards_counts
         
-        self.prior_policies = perception.prior_policies
-        self.prior_policies_counts = perception.prior_policies_counts
+        # self.prior_policies = perception.prior_policies
+        # self.prior_policies_counts = perception.prior_policies_counts
 
-        self.posterior_states = perception.posterior_states
-        self.posterior_policies = perception.prior_policies
-        self.forward_norms = perception.forward_norms
-        self.likelihood_policies = perception.likelihood_policies
-        self.posterior_policies = perception.posterior_policies
+        # self.posterior_states = perception.posterior_states
+        # self.posterior_policies = perception.prior_policies
 
-        self.prior_contexts = perception.prior_contexts
-        self.posterior_contexts = perception.posterior_contexts
+        # self.forward_norms = perception.forward_norms
+        # self.likelihood_policies = perception.likelihood_policies
+        # self.posterior_policies = perception.posterior_policies
+
+        # self.prior_context = perception.prior_context
+        # self.posterior_context = perception.posterior_context
         # self.policy_entropy = perception.policy_entropy
         # self.policy_predictive_posterior = perception.policy_predictive_posterior
+
         self.context_transition_matrix = perception.context_transition_matrix
+
         self.perc.actions = self.actions
         self.perc.rewards = self.rewards
         self.policies = self.perc.policies
         self.possible_policies = self.perc.possible_policies
-    
+
 
     def update_beliefs(self, t, tau, state, reward, action, observation):
-        
-        
-        posterior_states = self.perc.update_beliefs_states(t, tau, reward, action, observation)
+                
+        self.perc.update_beliefs_states(t, tau, reward, action, observation)
         
         likelihood_policies, posterior_policies = self.perc.update_beliefs_policies(t,tau)
 
         if t == 0 and tau != 0:
-            prior_context = self.posterior_contexts[tau-1,-1]
-            self.prior_contexts[tau] = self.context_transition_matrix.dot(prior_context)
-            # in future add here context transition matrix
+            self.prior_context[tau] = self.posterior_context[tau-1,-1]
 
-        prior_context = self.prior_contexts[tau,t]
+        prior_context = self.perc.prior_context[tau,t]
 
         posterior_context = self.perc.update_beliefs_context(t,tau, likelihood_policies, posterior_policies, prior_context)
 
-        if t > 0:
-            #changed
-            posterior_rewards = self.perc.update_beliefs_prior_rewards(t,tau,reward, posterior_states,
-                                                                        posterior_policies,posterior_context)
-
         if (t == self.T-1 and tau < self.TAU-1):
-            #changed
-            self.perc.update_beliefs_prior_policies(t, tau, posterior_context)
+            
+            c = self.sample_context(t,tau,posterior_context)
+            c=2 #debug
+            if c > self.perc.k:
+                self.perc.open_new_context()
+                self.perc.k += 1
+            
+            self.perc.update_beliefs_prior_policies(t,tau, posterior_context)
+            self.perc.update_beliefs_prior_context(t,tau,posterior_context)
+            self.perc.update_beliefs_prior_rewards(tau)
+    
+    def sample_context(self,t,tau,posterior_context):
+        return np.random.choice(np.arange(self.nc), p=posterior_context) + 1 # shift since, this is a context counter variable
 
-        
+
+
+
+
+
+
     def sample_action(self,t,tau):
 
-        post_policies = self.posterior_policies[tau,t]
-        post_context = self.posterior_contexts[tau,t]
-
+        post_policies = self.perc.posterior_policies[tau,t]
+        post_context = self.perc.posterior_context[tau,t]
         post_policies = post_policies.dot(post_context)
         # chosen_action = self.policies[np.argmax(post_policies)][t]
         
