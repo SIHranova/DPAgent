@@ -104,6 +104,15 @@ class NonParamHierarchicalPerception():
 
 
     def open_new_context(self):
+        
+        self.forward_norms = self.expand_dimension(self.forward_norms)
+        self.posterior_states = self.expand_dimension(self.posterior_states)
+
+        self.likelihood_policies = self.expand_dimension(self.likelihood_policies)
+        self.posterior_policies = self.expand_dimension(self.posterior_policies)
+
+        self.posterior_context = self.expand_dimension(self.posterior_context)
+
         self.prior_policies_counts = self.expand_dimension(self.prior_policies_counts)
         self.prior_policies = self.expand_dimension(self.prior_policies)
         
@@ -112,6 +121,7 @@ class NonParamHierarchicalPerception():
 
         self.prior_rewards_counts = self.expand_dimension(self.prior_rewards_counts)
         self.prior_rewards = self.expand_dimension(self.prior_rewards)
+
 
     def digamma_approximation(self, counts):
         return scp.softmax(scp.digamma(counts) - scp.digamma(counts.sum(axis=0)),axis=0)
@@ -132,9 +142,6 @@ class NonParamHierarchicalPerception():
         self.obs_messages = np.zeros((self.ns, self.T, self.npi, self.nc)) + 1/self.ns
 
         self.reward_messages = np.zeros([self.ns, self.T, self.npi, self.nc])
-
-        if tau > 0:
-            self.prior_rewards[tau,t] = self.prior_rewards[tau-1,self.T-1,].copy()
 
         rew_mess = np.einsum('r,rsc -> sc', self.utility, self.prior_rewards[tau,t])
         rew_mess /= rew_mess.sum(axis=0)
@@ -216,10 +223,10 @@ class NonParamHierarchicalPerception():
         return likelihood, posterior_policies
     
 
-    def update_beliefs_context(self,t,tau, likelihood_policies, posterior_policies, prior_context):
+    def update_beliefs_context(self,t,tau, likelihood_policies, posterior_policies):
         
-        if tau != 0:                                 # first inferred context should be 
-            prior_context[self.k+1] = self.kappa / (tau + self.kappa)
+
+        prior_context = self.prior_context[tau,0]
 
         if t>0:
             alphas = self.prior_policies_counts[tau,t]
@@ -238,8 +245,9 @@ class NonParamHierarchicalPerception():
             posterior_context = self.ln(prior_context)
 
         posterior_context = np.nan_to_num(scp.softmax(posterior_context))
-        self.posterior_context[tau,t] = posterior_context
+        self.posterior_context[tau] = posterior_context[None,...]
 
+        print(f"tau: {tau}, posterior: {posterior_context.round(3)}")            
         return posterior_context
     
 
@@ -262,26 +270,20 @@ class NonParamHierarchicalPerception():
             reward = self.rewards[tau,t]
 
             post_state = np.einsum('spc,pc->sc', posterior_states[:,t,:,:], posterior_policies)
-            state = np.argmax(post_state,axis=0)   #deterministic state update
+            state = np.argmax(post_state[:,:self.k],axis=0)                                                  #deterministic state update
 
-            beta_prime[reward,state,:-1] += posterior_context[:-1]
-            self.prior_rewards_counts[tau,t] = beta_prime
+            beta_prime[reward,state,:self.k] += posterior_context[:self.k]
 
-            # normalize reward counts
-            if self.approx_pred_rew:
-                posterior_predictive_rewards = self.digamma_approximation(beta_prime)
-            else:
-                posterior_predictive_rewards = beta_prime / beta_prime.sum(axis=0) 
+        self.prior_rewards_counts[tau+1] = beta_prime[None,...]
 
-            # carry over information for next trial
-            if tau != self.TAU-1:
-                if t == self.T-1:
-                    #check if still works without index?
-                    self.prior_rewards[tau+1] = posterior_predictive_rewards
-                    self.prior_rewards_counts[tau+1,0] =  beta_prime
-                else:
-                    self.prior_rewards[tau,t+1] = posterior_predictive_rewards
+        # normalize reward counts
+        if self.approx_pred_rew:
+            posterior_predictive_rewards = self.digamma_approximation(beta_prime)
+        else:
+            posterior_predictive_rewards = beta_prime / beta_prime.sum(axis=0) 
 
+        self.prior_rewards[tau+1] = posterior_predictive_rewards[None,...]
+        
         return posterior_predictive_rewards
 
 
@@ -300,7 +302,7 @@ class NonParamHierarchicalPerception():
 
         self.prior_policies_counts[tau+1] = alphas_prime[None,:,:]
         
-        assert np.all(self.prior_policies_counts[tau+1,:,-1] == 1/self.h)  # confirm empty context has no habit bias; perhaps talk about how to initialize psychologically? 
+        assert np.all(self.prior_policies_counts[tau+1,:,:,-1] == 1/self.h)  # confirm empty context has no habit bias; perhaps talk about how to initialize psychologically? 
 
         if self.approx_pred_pol:
             # integral_{theta} q(theta) ln p(pi|c,theta;alpha') 
@@ -314,7 +316,6 @@ class NonParamHierarchicalPerception():
 
     def update_beliefs_prior_context(self,t,tau, posterior_context):
 
-        posterior_context = np.array([0.2,0.8])
         gamma = self.prior_context_counts[tau,t].copy()
         gamma_prime = gamma.copy()
 
@@ -322,7 +323,8 @@ class NonParamHierarchicalPerception():
             posterior_context = posterior_context[:-1]/posterior_context[:-1].sum() 
         else:
             gamma_prime[-2:] = np.array([1,self.kappa])
-            
+            self.nc += 1
+
         gamma_prime[:self.k] += posterior_context
         self.prior_context_counts[tau+1] = gamma_prime[None,:]
 

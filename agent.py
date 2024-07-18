@@ -6,7 +6,6 @@ class NonParamAgent():
     def __init__(self,
                  state_transition_matrix,
                  na,
-                 nc,
                  env,
                  perception,
                  approx_pred_pol = True,
@@ -16,14 +15,12 @@ class NonParamAgent():
         # direct assignments
         self.state_transition_matrix = state_transition_matrix
         self.na = na
-        self.nc = nc
 
         #inherited from env class
         self.environment = env
         self.TAU = env.TAU
         self.T = env.T
         self.nr = env.nr
-        self.nc = nc
         self.ns = env.ns
         self.actions = env.actions
         self.rewards = env.rewards
@@ -65,39 +62,31 @@ class NonParamAgent():
         
         likelihood_policies, posterior_policies = self.perc.update_beliefs_policies(t,tau)
 
-        if t == 0 and tau != 0:
-            self.prior_context[tau] = self.posterior_context[tau-1,-1]
-
-        prior_context = self.perc.prior_context[tau,t]
-
-        posterior_context = self.perc.update_beliefs_context(t,tau, likelihood_policies, posterior_policies, prior_context)
-
         if (t == self.T-1 and tau < self.TAU-1):
             
+            posterior_context = self.perc.update_beliefs_context(t,tau, likelihood_policies, posterior_policies)
+
             c = self.sample_context(t,tau,posterior_context)
-            c=2 #debug
-            if c > self.perc.k:
-                self.perc.open_new_context()
-                self.perc.k += 1
+            if tau == 0 or tau > 5:
+                if c > self.perc.k:
+                    print( f"inferred new context at {tau}")
+                    self.perc.open_new_context()
+                    self.perc.k += 1
             
             self.perc.update_beliefs_prior_policies(t,tau, posterior_context)
-            self.perc.update_beliefs_prior_context(t,tau,posterior_context)
             self.perc.update_beliefs_prior_rewards(tau)
+            self.perc.update_beliefs_prior_context(t,tau,posterior_context)
     
+
     def sample_context(self,t,tau,posterior_context):
-        return np.random.choice(np.arange(self.nc), p=posterior_context) + 1 # shift since, this is a context counter variable
-
-
-
-
-
+        return np.random.choice(np.arange(self.perc.nc), p=posterior_context) + 1 # shift since, this is a context counter variable
 
 
     def sample_action(self,t,tau):
 
         post_policies = self.perc.posterior_policies[tau,t]
-        post_context = self.perc.posterior_context[tau,t]
-        post_policies = post_policies.dot(post_context)
+        prior_context = self.perc.prior_context[tau,t]
+        post_policies = post_policies.dot(prior_context)
         # chosen_action = self.policies[np.argmax(post_policies)][t]
         
         post_actions = np.zeros(self.na)
