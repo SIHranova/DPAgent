@@ -57,6 +57,7 @@ class NonParamAgent():
 
 
     def update_beliefs(self, t, tau, state, reward, action, observation):
+
                 
         self.perc.update_beliefs_states(t, tau, reward, action, observation)
         
@@ -66,12 +67,14 @@ class NonParamAgent():
             
             posterior_context = self.perc.update_beliefs_context(t,tau, likelihood_policies, posterior_policies)
 
-            c = self.sample_context(t,tau,posterior_context)
+            c = np.argmax(posterior_context) + 1#self.sample_context(t,tau, posterior_context)
+
             if tau == 0 or tau > 5:
                 if c > self.perc.k:
                     print( f"inferred new context at {tau}")
                     self.perc.open_new_context()
                     self.perc.k += 1
+                    self.perc.inferred_new_context[tau] = True
             
             self.perc.update_beliefs_prior_policies(t,tau, posterior_context)
             self.perc.update_beliefs_prior_rewards(tau)

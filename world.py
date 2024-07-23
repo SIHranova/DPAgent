@@ -6,6 +6,7 @@ class World():
 
         self.environment = environment
         self.agent = agent
+        # self.perc - self.agent.perc
         self.TAU = environment.TAU
         self.T = environment.T
         self.nr = environment.nr
@@ -30,3 +31,19 @@ class World():
 
                 if t < self.T-1:
                     action = self.agent.sample_action(t,tau)
+
+                # if t == self.T-1:
+                #     perc = self.agent.perc
+                #     for c in range(perc.k):
+                #         print(f"\n\ntrial: {tau}, t: {t}, context: {c}")
+                #         print(f"action: {action}, reward: {reward}")
+                #         print(f"\npost_states:\n{perc.posterior_states[tau,t,:,:,action,c]}")
+                #         print(f"\nprior_context:\n{perc.prior_context[tau,t].round(3)}")
+                #         print(f"\nposterior_context:\n{perc.posterior_context[tau,t].round(3)}")
+                #         print(f"\nprior_rewards:\n{perc.prior_rewards_counts[tau+1,t,:,:,c].round(3)}")
+                #         print(f"\nprior_policies:\n{perc.prior_policies_counts[tau+1,t,:,c].round(3)}")
+                
+                #     if tau==103:
+                #         a=0
+                        
+                        

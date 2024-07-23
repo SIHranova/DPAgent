@@ -54,8 +54,8 @@ class NonParamHierarchicalPerception():
         self.possible_policies = self.policies.copy()
         self.possible_policies_ind = np.arange(self.policies.shape[0])                                 
 
-
         # belief update logs
+        self.inferred_new_context = np.full(self.TAU,False)
         self.posterior_states = np.zeros([self.TAU,self.T, self.ns, self.T, self.npi, self.nc])
 
         self.prior_policies = np.zeros([self.TAU, self.T, self.npi, self.nc])
@@ -245,9 +245,7 @@ class NonParamHierarchicalPerception():
             posterior_context = self.ln(prior_context)
 
         posterior_context = np.nan_to_num(scp.softmax(posterior_context))
-        self.posterior_context[tau] = posterior_context[None,...]
-
-        print(f"tau: {tau}, posterior: {posterior_context.round(3)}")            
+        self.posterior_context[tau] = posterior_context[None,...] 
         return posterior_context
     
 
@@ -273,7 +271,7 @@ class NonParamHierarchicalPerception():
             state = np.argmax(post_state[:,:self.k],axis=0)                                                  #deterministic state update
 
             beta_prime[reward,state,:self.k] += posterior_context[:self.k]
-
+            
         self.prior_rewards_counts[tau+1] = beta_prime[None,...]
 
         # normalize reward counts
@@ -515,11 +513,7 @@ class HierarchicalPerception():
         self.likelihood_policies[tau,t] = likelihood/likelihood.sum(axis=0)
         self.posterior_policies[tau,t] = posterior_policies
 
-        # print('\n',tau,t)
-        # print(likelihood/likelihood.sum(axis=0))
 
-        # if tau==190:
-        #     a = 0
         return likelihood, posterior_policies
     
 
@@ -538,13 +532,6 @@ class HierarchicalPerception():
         posterior_context = np.nan_to_num(scp.softmax(posterior_context))
         self.posterior_contexts[tau,t] = posterior_context
 
-        # print('\n',tau,t,self.rewards[tau,t],self.actions[tau,t-1])
-        # print((posterior_policies * self.ln(likelihood_policies))[0])
-        # print((- (posterior_policies * self.ln(posterior_policies)))[0])
-        # print((+ posterior_policies * (scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0))))[0])
-        # (posterior_policies * scp.digamma(alphas)).sum(axis=0) - scp.digamma(alphas.sum(axis=0))
-        # print(self.ln(prior_context))
-        # print(+ (posterior_policies * scp.digamma(alphas)).sum(axis=0) - scp.digamma(alphas.sum(axis=0)))
 
         return posterior_context
     
