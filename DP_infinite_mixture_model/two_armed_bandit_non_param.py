@@ -14,7 +14,7 @@ from perception import NonParamHierarchicalPerception
 
 
 #PP
-np.random.seed(324214)
+np.random.seed(324243242)
 
 # Task setup parameters
 na = 2
@@ -26,7 +26,8 @@ nc = 1
 T = 2
 npi = na**(T-1)
 switch = 10
-training_protocol = np.tile(np.arange(2).repeat(switch),10)
+training_protocol = np.tile(np.arange(2).repeat(20),5)
+
 TAU = training_protocol.size
 
 # Agent setup Parameters
@@ -36,8 +37,10 @@ approx_pred_rew = True
 
 # kappa = 5
 
-for kappa in np.arange(0.5,6, 0.5):
-  kappa = 4
+for kappa in np.arange(2.8,3.5,0.1):
+
+  # kappa = 3.2
+
 
   '''           define policies            '''
   # policies = list(product(list(np.arange(na))*(T-1)))
@@ -76,7 +79,7 @@ for kappa in np.arange(0.5,6, 0.5):
     prior_rewards = counts_prior_rewards / counts_prior_rewards.sum(axis=0)
 
 
-  '''              define p(pi|c)           '''
+  '''           define counts alpha in p(pi|theta,alpha)           '''
   counts_prior_policies = np.zeros([npi,nc]) + h
 
   if approx_pred_pol:
@@ -96,12 +99,12 @@ for kappa in np.arange(0.5,6, 0.5):
   p = 1
   prior_context = np.array([p] + [1-p]*(nc-1))             # this is different than the normalized counts over context!
 
-  '''define context transition matrix p(c_t|c_)t-1))'''
+  '''define context transition matrix p(c_t|c_t-1))'''
 
   if nc == 1:
     context_transition_matrix = np.array([1])
   else:
-    p = 0.99
+    p = 0.95
     q = (1-p)/(nc-1)
     context_transition_matrix = np.eye(nc)*(1-2*q) + q
 
@@ -186,6 +189,7 @@ for kappa in np.arange(0.5,6, 0.5):
   save_json(world, 'test.json')
   data = load_json('test.json')
   ##############################
+
   data = data.agent.perc
   post_policies = np.nan_to_num(data.posterior_policies)
   prior_policies = np.nan_to_num(data.prior_policies)
@@ -202,11 +206,12 @@ for kappa in np.arange(0.5,6, 0.5):
   ### context plot
   plt.figure()
   # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-  plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
+  # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
   for c in range(data.nc):
-    plt.scatter(np.arange(TAU), post_context[:,0,c], label = f'posterior $c$={c}')
-  plt.title(f"$\kappa=${kappa}")
+    #plt.scatter(np.arange(TAU), post_context[:,0,c], label = f'posterior $c$={c}')
+    plt.plot(post_context[:,0,c])
   plt.legend()
+  plt.title(f"$\kappa=${kappa}")
 
   new_context = (data.inferred_new_context == True).nonzero()
 
@@ -259,3 +264,5 @@ for kappa in np.arange(0.5,6, 0.5):
 
 
 # PP
+
+# %%

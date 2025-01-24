@@ -25,14 +25,15 @@ nr = nb+1
 nc = 2
 T = 2
 npi = na**(T-1)
-training_protocol = np.arange(2).repeat(100)
+training_protocol = np.tile(np.arange(2).repeat(50),1)
+# training_protocol = np.repeat(np.arange(2),100)
 TAU = training_protocol.size
 
 
 # Agent setup Parameters
 h = 1
 approx_pred_pol = False
-approx_pred_rew = True
+approx_pred_rew = False
 
 
 '''           define policies            '''
@@ -103,34 +104,34 @@ reward_generation_matrix =  np.array([[[0.9,0.1,0],
 #%% Plot task setup
 
 '''Plot state transition matrix'''
+if False:
+  fig,axes = plt.subplots(1,2,figsize=(10,4))
 
-fig,axes = plt.subplots(1,2,figsize=(10,4))
+  for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
+      ax.xaxis.tick_top()
+      sns.heatmap(state_transition_matrix[:,:,ai],annot=True,ax=ax, cbar=False)
+      ax.set_xticklabels(['L1','L2','M'],minor=False);
+      ax.set_yticklabels(['L1','L2','M'])
+      ax.set_title(title);
 
-for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
-    ax.xaxis.tick_top()
-    sns.heatmap(state_transition_matrix[:,:,ai],annot=True,ax=ax, cbar=False)
-    ax.set_xticklabels(['L1','L2','M'],minor=False);
-    ax.set_yticklabels(['L1','L2','M'])
-    ax.set_title(title);
+  '''Plot likelihood matrix'''
 
-'''Plot likelihood matrix'''
-
-fig, ax = plt.subplots()
-ax = sns.heatmap(prior_rewards[...,0],cbar=False,annot=True)
-ax.set_xticklabels(['L1','L2','M'],minor=False)
-ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
-ax.set_title('Reward generation beliefs')
+  fig, ax = plt.subplots()
+  ax = sns.heatmap(prior_rewards[...,0],cbar=False,annot=True)
+  ax.set_xticklabels(['L1','L2','M'],minor=False)
+  ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
+  ax.set_title('Reward generation beliefs')
 
 
-'''Plot Environment reward generation matrix'''
+  '''Plot Environment reward generation matrix'''
 
-fig,axes = plt.subplots(1,2,figsize=(10,4))
-for ai, ax,title in zip([0,1], axes, ['Reward Regime 1', 'Reward Regime 2']):
-    ax.xaxis.tick_top()
-    sns.heatmap(reward_generation_matrix[:,:,ai],annot=True,ax=ax, cbar=False)
-    ax.set_xticklabels(['L1','L2','M'],minor=False)
-    ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
-    ax.set_title(title)
+  fig,axes = plt.subplots(1,2,figsize=(10,4))
+  for ai, ax,title in zip([0,1], axes, ['Reward Regime 1', 'Reward Regime 2']):
+      ax.xaxis.tick_top()
+      sns.heatmap(reward_generation_matrix[:,:,ai],annot=True,ax=ax, cbar=False)
+      ax.set_xticklabels(['L1','L2','M'],minor=False)
+      ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
+      ax.set_title(title)
 
 
 #%% Run Simulations
@@ -184,28 +185,49 @@ data = data.agent.perc
 post_policies = data.posterior_policies
 prior_policies = data.prior_policies
 like_policies = data.likelihood_policies
-post_context = data.posterior_contexts
+post_context = data.posterior_context
 actions = data.actions
 
 post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
 prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies, post_context)
-like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
+
 
 plt.style.use('default')
 
+
 plt.figure()
 plt.grid()
-plt.vlines(100,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-plt.scatter(np.arange(TAU), post_policies[:,0,1], label = 'posterior $\pi$')
-plt.scatter(np.arange(TAU), prior_policies[:,0,1], label = 'prior $\pi$')
-plt.scatter(np.arange(TAU), like_policies[:,0,1], label = 'like $\pi$')
+plt.plot(np.arange(TAU), post_context[:,-1,0],'-x', label = 'posterior_context 0')
+plt.plot(np.arange(TAU), post_context[:,-1,1],'-x', label = 'posterior_context 1')
+plt.ylim([0,1])
 plt.legend()
 
 
 plt.figure()
 plt.grid()
-plt.vlines(100,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-plt.scatter(np.arange(TAU), actions, label = 'action')
+
+
+plt.plot(np.arange(TAU), like_policies[:,0,0,0], '--x',  label = 'like_pol_0_cont_0')
+plt.plot(np.arange(TAU), like_policies[:,0,0,1], '-x', label = 'like_pol_0_cont_1')
+plt.plot(np.arange(TAU), like_policies[:,0,1,0], '--x',  label = 'like_pol_1_cont_0')
+plt.plot(np.arange(TAU), like_policies[:,0,1,1], '-x',  label = 'like_pol_1_cont_1')
+plt.ylim([0,1])
 plt.legend()
+
+like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
+plt.figure()
+plt.grid()
+# plt.vlines(100,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+plt.plot(np.arange(TAU), prior_policies[:,0,1], "-o", label = 'prior $\pi$')
+plt.plot(np.arange(TAU), like_policies[:,0,1], "-o", label = 'like $\pi$')
+plt.plot(np.arange(TAU), post_policies[:,0,1], "-x", label = 'posterior $\pi$')
+plt.legend()
+
+
+# plt.figure()
+# plt.grid()
+# # plt.vlines(100,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+# plt.plot(np.arange(TAU), actions, '-x',label = 'action')
+# plt.legend()
 
 

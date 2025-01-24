@@ -16,7 +16,7 @@ class NonParamHierarchicalPerception():
                  prior_policies,                       # p(pi|theta)
                  counts_prior_policies,                # parameters alpha of p(theta;alpha)
                  prior_states,                         # initial p(s|c)
-                 counts_prior_context,                 # hyperparameters gamma p(eta;gamma); symmetric for known contexts and kappa for trailing context dimension
+                 counts_prior_context,                 # hyperparameters gamma p(eta;gamma); symmetric for known context and kappa for trailing context dimension
                  prior_context,                        # initial p(c)
                  na,                                   #
                  nc,                                   #
@@ -37,7 +37,7 @@ class NonParamHierarchicalPerception():
         self.approx_pred_rew = approx_pred_rew
         self.na = na
         self.nc = nc
-        self.k = nc - 1                                # number of currently inferred contexts; should be 1 unless we initialize agent with knowledge of more contexts 
+        self.k = nc - 1                                # number of currently inferred context; should be 1 unless we initialize agent with knowledge of more context 
         self.kappa = kappa                             # kappa is concentration parameter for Dirichlet process
         
         #inherited from other classes
@@ -396,7 +396,7 @@ class HierarchicalPerception():
         
         self.prior_context = np.zeros([self.TAU, self.T, self.nc])
         self.prior_context[0,:] = prior_context[None,:]
-        self.posterior_contexts = np.zeros([self.TAU, self.T, self.nc])
+        self.posterior_context = np.zeros([self.TAU, self.T, self.nc])
 
 
     def ln(self, array):
@@ -530,7 +530,7 @@ class HierarchicalPerception():
             posterior_context = self.ln(prior_context)
 
         posterior_context = np.nan_to_num(scp.softmax(posterior_context))
-        self.posterior_contexts[tau,t] = posterior_context
+        self.posterior_context[tau,t] = posterior_context
 
 
         return posterior_context
@@ -539,7 +539,7 @@ class HierarchicalPerception():
     def update_beliefs_context(self,t,tau, likelihood_policies, posterior_policies, prior_context):
     
         # context-specific policy likelihood
-        if t> 0:
+        if t>0:
             alphas = self.prior_policies_counts[tau,t]
 
             # posterior_context =   self.ln(likelihood_policies) \
@@ -565,14 +565,12 @@ class HierarchicalPerception():
             print('posterior context')
             print(np.nan_to_num(scp.softmax(posterior_context)))
 
-            if tau == 130:
-                a=0
 
         else:
             posterior_context = self.ln(prior_context)
 
         posterior_context = np.nan_to_num(scp.softmax(posterior_context))
-        self.posterior_contexts[tau,t] = posterior_context
+        self.posterior_context[tau,t] = posterior_context
         
         # if t == 0:
         #     print('\n',tau,t, self.rewards[tau,t], None)

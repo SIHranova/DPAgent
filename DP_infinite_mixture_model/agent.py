@@ -67,19 +67,23 @@ class NonParamAgent():
             
             posterior_context = self.perc.update_beliefs_context(t,tau, likelihood_policies, posterior_policies)
 
-            c = np.argmax(posterior_context) + 1#self.sample_context(t,tau, posterior_context)
+            if tau == 0 or tau > 4:
 
-            if tau == 0 or tau > 5:
+                c =  np.argmax(posterior_context) + 1 #self.sample_context(t,tau, posterior_context)
+                posterior_context = np.eye(self.perc.nc)[c-1]
+
                 if c > self.perc.k:
                     print( f"inferred new context at {tau}")
                     self.perc.open_new_context()
                     self.perc.k += 1
                     self.perc.inferred_new_context[tau] = True
+                    # posterior_context = []
             
+                
             self.perc.update_beliefs_prior_policies(t,tau, posterior_context)
             self.perc.update_beliefs_prior_rewards(tau)
             self.perc.update_beliefs_prior_context(t,tau,posterior_context)
-    
+
 
     def sample_context(self,t,tau,posterior_context):
         return np.random.choice(np.arange(self.perc.nc), p=posterior_context) + 1 # shift since, this is a context counter variable
@@ -144,8 +148,8 @@ class Agent():
         self.likelihood_policies = perception.likelihood_policies
         self.posterior_policies = perception.posterior_policies
 
-        self.prior_contexts = perception.prior_contexts
-        self.posterior_contexts = perception.posterior_contexts
+        self.prior_context = perception.prior_context
+        self.posterior_context = perception.posterior_context
         # self.policy_entropy = perception.policy_entropy
         # self.policy_predictive_posterior = perception.policy_predictive_posterior
 
@@ -162,15 +166,16 @@ class Agent():
         likelihood_policies, posterior_policies = self.perc.update_beliefs_policies(t,tau)
 
         if t == 0 and tau != 0:
-            prior_context = self.posterior_contexts[tau-1,-1]
-            p = 0.989
+            prior_context = self.posterior_context[tau-1,-1]
+            p = 0.95
             q = (1-p)/(self.nc-1)
             context_transition_matrix = np.eye(self.nc)*(1-2*q) + q
             # context_transition_matrix = np.eye(self.nc)
-            self.prior_contexts[tau] = context_transition_matrix.dot(prior_context)
+            # print(context_transition_matrix)
+            self.prior_context[tau] = context_transition_matrix.dot(prior_context)
             # in future add here context transition matrix
 
-        prior_context = self.prior_contexts[tau,t]
+        prior_context = self.prior_context[tau,t]
         posterior_context = self.perc.update_beliefs_context(t,tau, likelihood_policies, posterior_policies, prior_context)
 
         if t > 0:
@@ -184,7 +189,7 @@ class Agent():
     def sample_action(self,t,tau):
 
         post_policies = self.posterior_policies[tau,t]
-        post_context = self.posterior_contexts[tau,t]
+        post_context = self.posterior_context[tau,t]
 
         post_policies = post_policies.dot(post_context)
         # chosen_action = self.policies[np.argmax(post_policies)][t]
