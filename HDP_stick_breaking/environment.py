@@ -57,8 +57,8 @@ plot_heatmap(transition_matrix_true);
 
 
 """Simulate HDP-HMM"""
-np.random.seed(2)
-N = 100
+np.random.seed(6)
+N = 150
 W = 5
 data = np.zeros([N*W,2],dtype=int)   # first column for observed value, second column for what component
 data[0,1] = 1            # the middle speaker says the first word
