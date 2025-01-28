@@ -2,8 +2,12 @@
 import numpy as np
 from scipy.special import digamma, softmax
 import matplotlib.pyplot as plt
-from environment import data, W, component_params_true, plot_heatmap # data - the words spoken, the speaker and the time point; W -  how many observations are passed at a time
+from environment import data, W, component_params_true, transition_matrix_true, plot_heatmap # data - the words spoken, the speaker and the time point; W -  how many observations are passed at a time
 import warnings
+from itertools import product
+import pandas as pd
+
+
 warnings.filterwarnings("ignore")
 
 class HDP():
@@ -12,21 +16,21 @@ class HDP():
         pass
     
     
-    def initialize_HDP(self, lambda_H=np.ones(10), TAU=10, gamma=2, alpha=1, kappa=0, K=0, max_context=6):
+    def initialize_HDP(self, lambda_H=np.ones(10), TAU=10, gamma=2, alpha=1, kappa=0, K=0, max_context=6,debug=False, obs_batch_size=1):
         
-        self.max_context = max_context   # max number of contexts
-        self.K = K                       # current number of contexts
-        self.TAU = TAU
-        self.gamma = gamma
-        self.alpha = alpha
-        self.kappa = kappa
+        self.max_context = max_context                                  # max number of contexts
+        self.W = obs_batch_size                                         # how many observations passed in a single go
+        self.K = K                                                      # current number of contexts
+        self.TAU = TAU                                                  # number of episodes
+        self.gamma = gamma                                              # cluster opening tendency
+        self.alpha = alpha                                              # transitioning into a new cluster tendency
+        self.kappa = kappa                                              # self transition bias
         self.rho = kappa/(alpha+kappa)
-        self.lambda_H = lambda_H                                                 # parameters of base Measure H = Dir(lambda)
-        self.observations  = np.zeros([self.TAU,W],dtype=int)
-        self.context = np.zeros(TAU, dtype=int)
-        self.posterior_context = np.zeros([self.TAU, self.max_context])
-        self.lambda_H = lambda_H # parameters of prior distribution over atoms
-
+        self.lambda_H = lambda_H                                        # parameters of base Measure H = Dir(lambda)
+        self.observations  = np.zeros([self.TAU,W],dtype=int)           # array storing observations
+        self.context = np.zeros(TAU, dtype=int)                         # array storing inferred context
+        self.posterior_context = np.zeros([self.TAU, self.max_context]) # array storing posterior over contextss
+        self.debug=debug
 
     def initialize_beliefs(self):
 
@@ -43,50 +47,54 @@ class HDP():
         self.transition_matrix[0,0] = 1 
 
         self.generative_model_counts = np.zeros([self.lambda_H.size,self.max_context])
-        self.generative_model_counts[:,0] = self.lambda_H                             # int_phi Cat(x|phi)Dir(phi|lambda_H) = Cat(x|lambda_H)  
+        self.generative_model_counts[:,0] = self.lambda_H                                # int_phi Cat(x|phi)Dir(phi|lambda_H) = Cat(x|lambda_H)  
         self.generative_model_obs = np.nan_to_num(self.generative_model_counts/self.generative_model_counts.sum(axis=0))
 
 
-    def update_beliefs_context(self,obs,tau):
-        
-        self.observations[tau] = obs
+    def update_beliefs_context(self,tau):
 
-        # if tau == 0:
-        #     obs_messages = np.array([self.generative_model_obs[self.observations[tau]], np.ones(self.max_context)])
-        #     q_z = np.array([self.global_prior, np.ones(self.max_context)])
-        # else:
-        #     obs_messages = self.generative_model_obs[self.observations[tau-1:tau+1]]
-        #     q_z = np.array([self.global_prior, self.global_prior])
+        """
+        Infers q(c_t,c_{t-1}) via Bethe Approximation
+        """
 
         if tau == 0:
-
-            obs_messages = np.array([
-                           self.generative_model_obs[self.observations[tau]].prod(axis=0),\
-                           np.ones(self.max_context)\
-                           ])
             
+            # p'(o_t1|c_t,z_t)p'(o_t2|c_t,z_t)...p'(o_tW|c_t,z_t)
+            obs_messages = np.array([
+                             self.generative_model_obs[self.observations[tau]].prod(axis=0),\
+                             np.ones(self.max_context)\
+                           ])
+            # q_z = \int_{beta} q(z|beta)q(beta)
             q_z = np.array([self.global_prior, np.ones(self.max_context)])
 
         else:
 
             obs_messages = np.array([
-                           self.generative_model_obs[self.observations[tau-1]].prod(axis=0),\
-                           self.generative_model_obs[self.observations[tau]].prod(axis=0)\
+                             self.generative_model_obs[self.observations[tau-1]].prod(axis=0),\
+                             self.generative_model_obs[self.observations[tau]].prod(axis=0)\
                            ])
             
             q_z = np.array([self.global_prior, self.global_prior])
 
+        if self.debug:
+            print("\ncalculating q(c_t)")
+            print('observations and observation messages')
+            print(self.observations[tau-1], self.observations[tau])
+            print(obs_messages)
+
+        # sum_{z_{t}} q(z_t) log \prod_w p'(o_tw|c_t=k,z_t=k) = log \prod_w \phi'_{wk}^{q(z_t=k)}
         obs_messages = obs_messages**q_z
         
+        # print(obs_messages)
         if tau < 2:
             prior_context = self.prior_context
         else:
             prior_context = self.transition_matrix.dot(self.posterior_context[tau-2])
         
-        # joint q(c_t,c_t-1)
-        q_c = self.transition_matrix*prior_context[None,:]*obs_messages[0,:][:,None]*obs_messages[1,:][None,:]
+        #  q(c_t,c_t-1)
+        q_c = self.transition_matrix*prior_context[None,:]*obs_messages[0,:][None,:]*obs_messages[1,:][:,None]
         
-        # joint q(c_t)
+        #  q(c_t) = sum_{c_{t-1}} q(c_t,c_{t-1})
         q_c = (q_c/q_c.sum()).sum(axis=1)
         self.posterior_context[tau] = q_c
 
@@ -99,19 +107,12 @@ class HDP():
 
         # print(f"---------\ntau={tau}")
 
+        self.observations[tau] = observation
+
         if tau == 0:
             self.initialize_beliefs()
         
-        q_c = self.update_beliefs_context(observation,tau)
-        # w_t = np.random.binomial(1,self.rho)
-        # print(self.alpha, self.kappa,self.rho, w_t)
-        
-        # if w_t == True and tau > 0:
-        #     current_context = self.context[tau-1]
-            # print(self.alpha, self.kappa, self.rho)
-            # print("overrode context transition")
-        # else:  
-            # current_context = np.argmax(q_c)
+        q_c = self.update_beliefs_context(tau)
         
         current_context = np.argmax(q_c)
         
@@ -216,68 +217,110 @@ class HDP():
 
         return transition_matrix
 
-
+#####################################################################################
 
 i = 0
+
+gammas = np.arange(0.001, 0.1,0.005)
+alphas = np.arange(0.001, 0.15,0.005)
+kappas = np.arange(0,0.01,0.001)
+
+gammas = np.arange(0.001, 0.15,0.005)
+alphas = np.arange(0.001, 0.15,0.005)
+kappas = np.arange(0,0.02,0.002)
+
+
+gammas = np.arange(0.001, 0.15,0.005)
+alphas = np.arange(0.001, 0.014,0.001)
+kappas = np.arange(0,0.02,0.002)
+
 distance_best_fit = 10000
-for gamma in np.arange(0.001, 0.1,0.005):#,2,0.1):
-    for alpha in np.arange(0.001, 0.04,0.005):#,9,0.5):#,3,0.1):
-        for kappa in np.arange(0,0.05,0.001):#)2,9,0.5):#,3,0.1):
 
-            agent = HDP()
-            agent.initialize_HDP(TAU=data.shape[0],alpha=alpha, gamma=gamma, kappa=kappa)
+print(gammas.size*alphas.size*kappas.size)
+simulation_data = np.zeros([int(gammas.size*alphas.size*kappas.size),6])
+simulation_data.fill(np.nan)
 
-            for tau in range(int(data[:,0].size / 5)): #]):
-                agent.update_beliefs(data[tau*W:(tau+1)*W,0],tau)
+for gamma, alpha, kappa in product(gammas,alphas,kappas):
 
-            # for tau, obs in enumerate(data[:,0]): #]):
-            #     agent.update_beliefs(obs,tau)
+    agent = HDP()
+    agent.initialize_HDP(TAU=data.shape[0],alpha=alpha, gamma=gamma, kappa=kappa)
+
+    for tau in range(int(data[:,0].size / 5)): #]):
+        agent.update_beliefs(data[tau*W:(tau+1)*W,0],tau)
+
+    if agent.K == 3:
+
+        Q = agent.generative_model_obs[:,:agent.K]
+        P = component_params_true
+
+        labels = np.zeros(3,dtype=int)
+        true_distance = np.zeros(3)
+        distances = np.zeros((3,3))
+
+        hm = (agent.transition_matrix[:agent.K,:agent.K]/agent.transition_matrix[:agent.K,:agent.K].sum(axis=0)[None,:])
+        
+        for distribution in range(3):
+
+            for candidate in range(3):
+
+                distances[distribution, candidate] = (Q[:,candidate]*np.log(Q[:,candidate]/P[:,distribution])).sum()
             
-            if agent.K == 3:
-                # print(agent.K)
-                # plot_heatmap(agent.generative_model_obs, ind= str(i) + "_1", title= f"phi - gamma: {round(gamma,3)}, alpha: {round(alpha,3)}, kappa: {round(kappa,3)}")
-                Q = agent.generative_model_obs[:,:agent.K]
-                P = component_params_true
-                
-                labels = np.zeros(3,dtype=int)
-                true_distance = np.zeros(3)
-                distances = np.zeros((3,3))
-                for distribution in range(3):
-                    for candidate in range(3):
-                        distances[distribution, candidate] = (Q[:,candidate]*np.log(Q[:,candidate]/P[:,distribution])).sum()
-                    labels[distribution] = np.argmin(distances[distribution])
-                    true_distance[distribution] = distances[distribution, np.argmin(distances[distribution])]
-                    # print(distribution, candidate, distances[distribution])
-                    
-                if np.unique(labels).size == 3:
+            labels[distribution] = np.argmin(distances[distribution])
+            true_distance[distribution] = distances[distribution, np.argmin(distances[distribution])]
+            
+        if np.unique(labels).size == 3:
 
-                    print(f"params: {gamma,alpha,kappa}")
-                    total_distance = true_distance.sum()/3
-                    print(total_distance.round(3), true_distance/round(3))
-                    print("\n")
-                    if total_distance < distance_best_fit:
-                        distance_best_fit = total_distance
-                        params = [gamma,alpha,kappa]
+            # print(f"params: {gamma.round(5),alpha.round(5),kappa.round(5)}")
+            total_distance = true_distance.sum()/3
 
-                        Q = Q[:,labels]
+            Q = Q[:,labels]
+            hm = hm[:,labels]
 
-                        plt.figure()
-                        plt.plot(Q)
-                        plt.ylim(0,0.6)
-                        plt.savefig(str(i)+"_0.png")
-                        plt.close()
-                        hm = (agent.transition_matrix[:agent.K,:agent.K]/agent.transition_matrix[:agent.K,:agent.K].sum(axis=0)[None,:]).round(2)
-                        print(hm)
-                        plot_heatmap(hm, ind = str(i) + "_2", title=f"trans matrix - gamma: {round(gamma,3)}, alpha: {round(alpha,3)}, kappa: {round(kappa,3)}")
-            # else:
-            #     print(agent.K)
-            # plot_heatmap(agent.generative_model_obs, title= f"phi - gamma: {gamma}, alpha: {alpha}, kappa: {kappa}")
-            # plot_heatmap(agent.transition_matrix, title=f"trans matrix - gamma: {gamma}, alpha: {alpha}, kappa: {kappa}")
+            title = f"{total_distance.round(3)}_{i}_" 
+            plt.figure()
+            plt.plot(Q)
+            plt.ylim(0,0.6)
+            plt.savefig(title+"_0.png")
+            plt.close()
+            plot_heatmap(hm.round(2), file_title = title + "_2", title=f"trans matrix - gamma: {round(gamma,3)}, alpha: {round(alpha,3)}, kappa: {round(kappa,3)}")
+            simulation_data[i] = np.array([i,total_distance, gamma,alpha,kappa, 0])
+    
+    if i%100==0:
+        print(i)
 
-            i += 1
-            # plot_heatmap(agent.transition_matrix_counts[:,:,0])
-            # plot_heatmap(agent.transition_matrix_counts[:,:,1])
+    i += 1
+    
 
-# a way to store current best estimates!
 
 # %%
+import seaborn as sns
+df = pd.DataFrame(data = simulation_data[:,1:-1], columns = ["distribution_distance","gamma","alpha","kappa"])
+df = df.dropna()
+# df = df[df["distribution_distance"]<0.5]
+# df.drop(columns=["i","matrix_distance"])
+
+
+# Example data
+
+# Create a 3D scatter plot
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111, projection='3d')
+
+# Scatter plot with color mapping for performance
+scatter = ax.scatter(df['alpha'], df['gamma'], df['kappa'], c=df['distribution_distance'], cmap='viridis', s=50)
+scatter = ax.scatter(df['alpha'], df['gamma'], df['kappa'], c=df['distribution_distance'], cmap='viridis', s=30)
+
+# Add labels
+ax.set_xlabel('alpha')
+ax.set_ylabel('gamma')
+ax.set_zlabel('kappa')
+
+# Add a colorbar
+cbar = fig.colorbar(scatter)
+cbar.set_label('Performance Metric')
+
+plt.title('3D Scatter Plot of Parameters and Performance')
+plt.show()
+
+#%%
+

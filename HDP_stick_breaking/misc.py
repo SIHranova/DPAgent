@@ -4,7 +4,7 @@ import numpy as np
 
 
 
-def plot_heatmap(data, ind=str(0), title=None,vmin=0,vmax=1):
+def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1):
     
     if not type(data) is list:
         data = [data]
@@ -26,7 +26,6 @@ def plot_heatmap(data, ind=str(0), title=None,vmin=0,vmax=1):
         # g.set_x_
 
     # plt.show()
-    plt.savefig(ind + ".png")
-    
+    plt.savefig(file_title + ".png")
     plt.close()
     # return fig, axes
