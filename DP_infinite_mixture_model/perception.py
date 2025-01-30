@@ -579,9 +579,6 @@ class HierarchicalPerception():
 
         # print(prior_context)
         # print(posterior_context)
-        
-        if tau == 100:
-            a=0
 
         return posterior_context
     
