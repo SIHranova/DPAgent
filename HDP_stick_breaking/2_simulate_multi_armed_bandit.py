@@ -63,7 +63,7 @@ counts = np.array([[1,1,1],
                    [1,1,1],
                    [1,1,100]])
 
-counts_prior_rewards = np.stack( [ counts for i in range(nc) ],axis=-1)
+counts_prior_rewards = np.stack([counts for i in range(nc)],axis=-1)
 # counts_prior_rewards[:,:,0] = np.array([[20,2,1],
 #                                         [2,20,1],
 #                                         [1,1,100]])
@@ -153,7 +153,7 @@ env = MultiArmedBandit(state_transition_matrix,
                     no=no)
 
 
-agent = HDP(lambda_H = np.ones([nr,ns]),
+agent = HDP(lambda_H = counts,
             TAU=TAU,
             T=T,
             gamma=gamma,
@@ -171,7 +171,7 @@ agent = HDP(lambda_H = np.ones([nr,ns]),
             na = na,
             env = env,
             approx_pred_pol = approx_pred_pol,
-            approx_pred_rew = approx_pred_rew,)
+            approx_pred_rew = approx_pred_rew)
 
 
 

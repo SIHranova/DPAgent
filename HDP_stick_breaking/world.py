@@ -13,6 +13,8 @@ class World():
 
 
     def simulate_experiment(self, TAU=None):
+        
+        self.agent.initialize_beliefs()
 
         for tau in range(self.TAU):
 

@@ -546,9 +546,9 @@ class HierarchicalPerception():
             #                      - self.ln(posterior_policies)\
             #                      + scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0))
             # posterior_context = (posterior_policies*posterior_context).sum(axis=0) + self.ln(prior_context)                            
-            outcome_surprise = (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
-            policy_entropy =  -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
-            policy_surprise = (posterior_policies * (scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0)))).sum(axis=0)
+            outcome_surprise =   (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
+            policy_entropy   =  -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
+            policy_surprise  =   (posterior_policies * (scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0)))).sum(axis=0)
 
             posterior_context = outcome_surprise + policy_entropy + policy_surprise + self.ln(prior_context)
 
