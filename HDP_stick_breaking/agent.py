@@ -97,7 +97,7 @@ class HDP():
         array = array[:,None].T if array.shape[-1] == 1 else array.T
         return np.ravel_multi_index(array, [self.na]*(self.T-1))
 
-
+ 
     def initialize_states_messages(self,t,tau):
 
         # initialize messages for Bethe Approximation Belief Propagation
@@ -245,65 +245,67 @@ class HDP():
         
         self.update_beliefs_states(t, tau, reward, action, observation)
 
-
+        # q_policy_given_context = update_beliefs_policies()
+        
         print("HERE")
         q_c = self.update_beliefs_context(tau,t)
+        
+        # q_policy = q_policy_given_context*q_c 
+        # action = self.sample_action()
         
         current_context = np.argmax(q_c)
         self.context[tau] = current_context
 
-        if current_context + 1 > self.K:         # if inferred presence of new context
-            # print(f"opened new context at tau: {tau}")
-            self.K += 1
-            self.opened_new_context[tau] = 1
+        if t == self.T-1:
+            if current_context + 1 > self.K:         # if inferred presence of new context
+                # print(f"opened new context at tau: {tau}")
+                self.K += 1
+                self.opened_new_context[tau] = 1
 
-            # add prior over new weight beta'_k
-            self.global_prior_counts[self.K-1] = [1,self.gamma]
+                # add prior over new weight beta'_k
+                self.global_prior_counts[self.K-1] = [1,self.gamma]
+                
+                # add prior over new atom \phi_k
+                self.prior_rewards_counts[:,self.K] = self.lambda_H
+
+                # add prior over new transition weights
+                self.transition_matrix_counts[np.arange(self.K), [self.K-1]*(self.K), :] = [1,self.alpha]
+                self.transition_matrix_counts[[self.K-1]*(self.K), np.arange(self.K), :] = [1,self.alpha]
+                
+                # add self-transition bias kappa      
+                counts = np.zeros([self.max_context, self.max_context, 2])  
+                counts[self.K-1, self.K-1, 0] = self.kappa
+                counts[:self.K-1, self.K-1, 1] = self.kappa
+                
+                self.transition_matrix_counts = self.transition_matrix_counts + counts
+
+
+            # update posterior over global context  q(beta'|gamma)
+            counts = np.zeros([self.max_context,2])
+            counts[current_context,0] += 1
+            counts[:current_context,1] += 1
+            self.global_prior_counts += counts
+            self.global_prior = self.construct_G_0(approx=False)
+
+            # update lambda of q(phi|lambda)
+            for obs in observation:
+                self.prior_rewards_counts[obs, current_context] += 1
+            self.prior_rewards = np.nan_to_num(self.prior_rewards_counts/self.prior_rewards_counts.sum(axis=0))
+
+            # update eta of q(c_t|c_t-1, eta)
+            if tau > 0:
+                # print(f"tau: {tau}, contexts: {self.context[tau-1]},{self.context[tau]}")
+                counts = np.zeros([self.max_context, self.max_context, 2])
+                counts[self.context[tau], self.context[tau-1], 0] = 1
+                counts[:self.context[tau], self.context[tau-1], 1] = 1 
+
+                self.transition_matrix_counts = self.transition_matrix_counts + counts
+
+            self.transition_matrix = self.construct_G_j(approx=False)
             
-            # add prior over new atom \phi_k
-            self.prior_rewards_counts[:,self.K] = self.lambda_H
-
-            # add prior over new transition weights
-            self.transition_matrix_counts[np.arange(self.K), [self.K-1]*(self.K), :] = [1,self.alpha]
-            self.transition_matrix_counts[[self.K-1]*(self.K), np.arange(self.K), :] = [1,self.alpha]
+            # self.posterior_context[tau] = np.eye(self.max_context)[current_context]
             
-            # add self-transition bias kappa      
-            counts = np.zeros([self.max_context, self.max_context, 2])  
-            counts[self.K-1, self.K-1, 0] = self.kappa
-            counts[:self.K-1, self.K-1, 1] = self.kappa
-            
-            self.transition_matrix_counts = self.transition_matrix_counts + counts
-
-
-        # update posterior over global context  q(beta'|gamma)
-        counts = np.zeros([self.max_context,2])
-        counts[current_context,0] += 1
-        counts[:current_context,1] += 1
-        self.global_prior_counts += counts
-        self.global_prior = self.construct_G_0(approx=False)
-
-        # update lambda of q(phi|lambda)
-        for obs in observation:
-            self.prior_rewards_counts[obs, current_context] += 1
-
-        # print(tau,observation)
-        # print(self.prior_rewards_counts)    
-        self.prior_rewards = np.nan_to_num(self.prior_rewards_counts/self.prior_rewards_counts.sum(axis=0))
-
-        # print(f"\ndata likelihood:\n{self.generative_model_counts}")
-
-        # update phi of q(c_t|c_t-1,phi)
-        if tau > 0:
-            # print(f"tau: {tau}, contexts: {self.context[tau-1]},{self.context[tau]}")
-            counts = np.zeros([self.max_context, self.max_context, 2])
-            counts[self.context[tau], self.context[tau-1], 0] = 1
-            counts[:self.context[tau], self.context[tau-1], 1] = 1 
-
-            self.transition_matrix_counts = self.transition_matrix_counts + counts
-
-        self.transition_matrix = self.construct_G_j(approx=False)
-        
-        # self.posterior_context[tau] = np.eye(self.max_context)[current_context]
+        # return action
 
 
     def construct_G_0(self, approx=False):
@@ -357,6 +359,22 @@ class HDP():
 
         return transition_matrix
 
+
+    def sample_action(self,t,tau):
+
+        post_policies = self.perc.posterior_policies[tau,t]
+        prior_context = self.perc.prior_context[tau,t]
+        post_policies = post_policies.dot(prior_context)
+        # chosen_action = self.policies[np.argmax(post_policies)][t]
+        
+        post_actions = np.zeros(self.na)
+        for a in range(self.na):
+            post_actions[a] = post_policies[self.policies[:,t] == a].sum()
+
+        chosen_action = np.random.choice(np.arange(self.na), p=post_actions)
+        self.actions[tau,t] = chosen_action
+        
+        return chosen_action
 
 
 class HDP_speaker_discretization():
