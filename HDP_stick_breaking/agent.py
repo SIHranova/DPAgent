@@ -32,9 +32,11 @@ class HDP():
                  env = None,
                  approx_pred_pol = None,
                  approx_pred_rew = None,
-                 h=1000
+                 h=1000,
+                 debug = False,
                 ):
         
+        self.debug = debug
         self.max_context = max_context                                     # max number of contexts
         self.T = T                                                         # number of observations per episode
         self.K = K                                                         # current number of contexts
@@ -384,63 +386,63 @@ class HDP():
             
             # self.posterior_context[tau] = np.eye(self.max_context)[current_context]
 
-        
-        if tau < 20:
-            if self.opened_new_context[tau]:
-                self.K -= 1
-            print(f"--------------------\ntau,t: {tau,t}")
-            print(f"action: {action}, observation: {observation}, reward: {reward}")
-            # print(f"\nq_s for policy:")
-            
-            # for k in range(self.K+1):
-            #     print(q_s[:,:,0,k])
-            #     print(q_s[:,:,1,k])
+        if False: #self.debug:
+            if tau < 20:
+                if self.opened_new_context[tau]:
+                    self.K -= 1
+                print(f"--------------------\ntau,t: {tau,t}")
+                print(f"action: {action}, observation: {observation}, reward: {reward}")
+                # print(f"\nq_s for policy:")
+                
+                # for k in range(self.K+1):
+                #     print(q_s[:,:,0,k])
+                #     print(q_s[:,:,1,k])
 
-            print(f"\nq(r|pi,c); policy likelihood:")
-            print(likelihood_policies.round(4))
+                print(f"\nq(r|pi,c); policy likelihood:")
+                print(likelihood_policies.round(4))
 
-            print(f"\nq(pi|c) policy posterior:")
-            print(posterior_policies.round(4))
-            
-            print(f"\nq(c):")
-            print(q_c)
+                print(f"\nq(pi|c) policy posterior:")
+                print(posterior_policies.round(4))
+                
+                print(f"\nq(c):")
+                print(q_c)
 
-            if t == self.T-1:
-                print(f"\nchosen context:")
-                print(current_context)
+                if t == self.T-1:
+                    print(f"\nchosen context:")
+                    print(current_context)
+                    
+                    if self.opened_new_context[tau]:
+                        print("opened new context!")
+
+                    print(f"\nglobal prior counts")
+                    print(self.global_prior_counts.T)
+
+                    print(f"\nglobal prior")
+                    print(self.global_prior.round(3))
+
+                    print(f"\nrewards counts:")
+                    print(f"obs, reward: {observation, reward}")
+                    for k in range(self.K+1):
+                        print(f"\n{self.prior_rewards_counts[tau+1,:,:,k]}")
+                    
+                    print(f"prior_rewards")
+                    for k in range(self.K+1):
+                        print(self.prior_rewards[tau,:,:,k].round(3))
+                    print(f"\ntransition matrix counts")
+                    print(f"contexts:{self.context[tau-1], self.context[tau]}")
+
+                    print("\n")
+                    print(self.transition_matrix_counts[:,:,0])
+                    print("\n")
+                    print(self.transition_matrix_counts[:,:,1])
+                    
+                    print(f"\npolicy counts")
+                    print(f"chosen policy:{chosen_pol}")
+                    print(self.prior_policies_counts[tau])
+                    print(self.prior_policies[tau].round(3))
                 
                 if self.opened_new_context[tau]:
-                    print("opened new context!")
-
-                print(f"\nglobal prior counts")
-                print(self.global_prior_counts.T)
-
-                print(f"\nglobal prior")
-                print(self.global_prior.round(3))
-
-                print(f"\nrewards counts:")
-                print(f"obs, reward: {observation, reward}")
-                for k in range(self.K+1):
-                    print(f"\n{self.prior_rewards_counts[tau+1,:,:,k]}")
-                
-                print(f"prior_rewards")
-                for k in range(self.K+1):
-                    print(self.prior_rewards[tau,:,:,k].round(3))
-                print(f"\ntransition matrix counts")
-                print(f"contexts:{self.context[tau-1], self.context[tau]}")
-
-                print("\n")
-                print(self.transition_matrix_counts[:,:,0])
-                print("\n")
-                print(self.transition_matrix_counts[:,:,1])
-                
-                print(f"\npolicy counts")
-                print(f"chosen policy:{chosen_pol}")
-                print(self.prior_policies_counts[tau])
-                print(self.prior_policies[tau].round(3))
-            
-            if self.opened_new_context[tau]:
-                self.K = self.K+1
+                    self.K = self.K+1
         # return action
 
 
