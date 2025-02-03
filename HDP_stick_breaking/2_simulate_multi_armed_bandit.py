@@ -5,6 +5,7 @@ import pandas as pd
 import seaborn as sns
 import scipy.special as scp
 from itertools import product
+from matplotlib.ticker import MultipleLocator
 
 from misc import *
 from environment import MultiArmedBandit
@@ -23,239 +24,270 @@ nr = nb+1
 nc = 1
 T = 2
 npi = na**(T-1)
-switch = 10
-training_protocol = np.tile(np.arange(2).repeat(20),5)
+switch = 50
+training_protocol = np.tile(np.arange(2).repeat(switch),1)
+# plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 
 TAU = training_protocol.size
 
 # Agent setup Parameters
-h = 1000
+h = 1
 approx_pred_pol = True
 approx_pred_rew = True
 
-gamma = .121
-alpha = 0.003
-kappa = 0.01
+# gamma = .121
+# alpha = 0.003
+# kappa = 0.01
+
+gamma = 1
+alphas = [1.9,1.9,1.9,1.9]#[2.1]
+kappa = 1
 
 
-'''           define policies            '''
-# policies = list(product(list(np.arange(na))*(T-1)))
-policies = np.array(list(product( np.arange(na), repeat= T-1)))
+for alpha in alphas:
+    '''           define policies            '''
+    # policies = list(product(list(np.arange(na))*(T-1)))
+    policies = np.array(list(product( np.arange(na), repeat= T-1)))
 
 
-'''       define p(s_t|s_t-1, a_t-1)      '''
-prior_states = np.array([0,0,1])
-state_transition_matrix = np.array([[[1,0,1],
-                                     [0,1,0],
-                                     [0,0,0]],
+    '''       define p(s_t|s_t-1, a_t-1)      '''
+    prior_states = np.array([0,0,1])
+    state_transition_matrix = np.array([[[1,0,1],
+                                        [0,1,0],
+                                        [0,0,0]],
 
-                                    [[1,0,0],
-                                     [0,1,1],
-                                     [0,0,0]]]).transpose(1,2,0)
-
-
-'''          define p(o_t|s_t)            '''
-observation_generation_matrix = np.eye(ns)
+                                        [[1,0,0],
+                                        [0,1,1],
+                                        [0,0,0]]]).transpose(1,2,0)
 
 
-'''           define p(r|s,c)             '''
-counts = np.array([[1,1,1],
-                   [1,1,1],
-                   [1,1,100]])
-
-counts_prior_rewards = np.stack([counts for i in range(nc)],axis=-1)
-# counts_prior_rewards[:,:,0] = np.array([[20,2,1],
-#                                         [2,20,1],
-#                                         [1,1,100]])
-
-if approx_pred_rew:
-    prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
-    prior_rewards = scp.softmax(prior_rewards, axis=0)
-else:
-    prior_rewards = counts_prior_rewards / counts_prior_rewards.sum(axis=0)
+    '''          define p(o_t|s_t)            '''
+    observation_generation_matrix = np.eye(ns)
 
 
-'''           define counts alpha in p(pi|theta,alpha)           '''
-counts_prior_policies = np.zeros([npi,nc]) + h
+    '''           define p(r|s,c)             '''
+    counts = np.array([[1,1,1],
+                    [1,1,1],
+                    [1,1,100]])
 
-if approx_pred_pol:
-    prior_policies = scp.softmax(scp.digamma(counts_prior_policies) - scp.digamma(counts_prior_policies.sum(axis=0)))
-else:
-    prior_policies = counts_prior_policies / counts_prior_policies.sum(axis=0)
+    counts_prior_rewards = np.stack([counts for i in range(nc)],axis=-1)
+    # counts_prior_rewards[:,:,0] = np.array([[20,2,1],
+    #                                         [2,20,1],
+    #                                         [1,1,100]])
 
-
-'''       define dummy utility RV p(R=1) '''
-utility = np.array([0.99, 0.005,0.005])
-
-
-# '''       define prior over contexts p(c) '''
-# counts_prior_context = np.array([0]*(nc-1) + [kappa])
-
-# p = 1
-# prior_context = np.array([p] + [1-p]*(nc-1))             # this is different than the normalized counts over context!
-
-# '''define context transition matrix p(c_t|c_t-1))'''
-
-# if nc == 1:
-#     context_transition_matrix = np.array([1])
-# else:
-#     p = 0.95
-#     q = (1-p)/(nc-1)
-#     context_transition_matrix = np.eye(nc)*(1-2*q) + q
-
-'''   define Env reward generation matrix '''
-reward_generation_matrix =  np.array([[[0.9, 0.1, 0], 
-                                       [0.1, 0.9, 0], 
-                                       [0  , 0  , 1]], 
-                                      
-                                      [[0.1, 0.9, 0], 
-                                       [0.9, 0.1, 0], 
-                                       [0  , 0  , 1]]]).transpose(1,2,0)
+    if approx_pred_rew:
+        prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
+        prior_rewards = scp.softmax(prior_rewards, axis=0)
+    else:
+        prior_rewards = counts_prior_rewards / counts_prior_rewards.sum(axis=0)
 
 
-#PP Plot task setup
-if True:
-    '''Plot state transition matrix'''
-    fig,axes = plt.subplots(1,2,figsize=(6,3))
-    for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
-        ax.xaxis.tick_top()
-        sns.heatmap(state_transition_matrix[:,:,ai],annot=True,ax=ax, cbar=False, cmap="viridis")
-        ax.set_xticklabels(['L1','L2','M'],minor=False);
-        ax.set_yticklabels(['L1','L2','M'])
-        ax.set_title(title);
+    '''           define counts alpha in p(pi|theta,alpha)           '''
+    counts_prior_policies = np.zeros([npi,nc]) + h
 
-    '''Plot likelihood matrix'''
-    fig, ax = plt.subplots(figsize=(3,3))
-    ax = sns.heatmap(prior_rewards[...,0],cbar=False,annot=True, cmap="viridis")
-    ax.set_xticklabels(['L1','L2','M'],minor=False)
-    ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
-    ax.set_title('Reward generation beliefs')
+    if approx_pred_pol:
+        prior_policies = scp.softmax(scp.digamma(counts_prior_policies) - scp.digamma(counts_prior_policies.sum(axis=0)))
+    else:
+        prior_policies = counts_prior_policies / counts_prior_policies.sum(axis=0)
 
 
-    '''Plot Environment reward generation matrix'''
-    fig,axes = plt.subplots(1,2,figsize=(6,3))
-    for ai, ax,title in zip([0,1], axes, ['Reward Regime 1', 'Reward Regime 2']):
-        ax.xaxis.tick_top()
-        sns.heatmap(reward_generation_matrix[:,:,ai],annot=True,ax=ax, cbar=False, cmap="viridis")
+    '''       define dummy utility RV p(R=1) '''
+    utility = np.array([0.99, 0.005,0.005])
+
+
+    # '''       define prior over contexts p(c) '''
+    # counts_prior_context = np.array([0]*(nc-1) + [kappa])
+
+    # p = 1
+    # prior_context = np.array([p] + [1-p]*(nc-1))             # this is different than the normalized counts over context!
+
+    # '''define context transition matrix p(c_t|c_t-1))'''
+
+    # if nc == 1:
+    #     context_transition_matrix = np.array([1])
+    # else:
+    #     p = 0.95
+    #     q = (1-p)/(nc-1)
+    #     context_transition_matrix = np.eye(nc)*(1-2*q) + q
+
+    '''   define Env reward generation matrix '''
+    reward_generation_matrix =  np.array([[[0.9, 0.1, 0], 
+                                        [0.1, 0.9, 0], 
+                                        [0  , 0  , 1]], 
+                                        
+                                        [[0.1, 0.9, 0], 
+                                        [0.9, 0.1, 0], 
+                                        [0  , 0  , 1]]]).transpose(1,2,0)
+
+
+    #PP Plot task setup
+    if False:
+        '''Plot state transition matrix'''
+        fig,axes = plt.subplots(1,2,figsize=(6,3))
+        for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
+            ax.xaxis.tick_top()
+            sns.heatmap(state_transition_matrix[:,:,ai],annot=True,ax=ax, cbar=False, cmap="viridis")
+            ax.set_xticklabels(['L1','L2','M'],minor=False);
+            ax.set_yticklabels(['L1','L2','M'])
+            ax.set_title(title);
+
+        '''Plot likelihood matrix'''
+        fig, ax = plt.subplots(figsize=(3,3))
+        ax = sns.heatmap(prior_rewards[...,0],cbar=False,annot=True, cmap="viridis")
         ax.set_xticklabels(['L1','L2','M'],minor=False)
         ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
-        ax.set_title(title)
-
-#PP Run Simulations
-
-env = MultiArmedBandit(state_transition_matrix,
-                    reward_generation_matrix, 
-                    TAU=TAU,
-                    T=T,
-                    n_bandits = nb,
-                    training_protocol=training_protocol,
-                    observation_generation_matrix=observation_generation_matrix,
-                    no=no)
+        ax.set_title('Reward generation beliefs')
 
 
-agent = HDP(lambda_H = counts,
-            TAU=TAU,
-            T=T,
-            gamma=gamma,
-            alpha=alpha,
-            kappa=kappa,
-            state_transition_matrix = state_transition_matrix,
-            observation_generation_matrix = observation_generation_matrix,
-            utility = utility,
-            policies = policies,
-           #  prior_rewards = prior_rewards,
-           #  counts_prior_rewards = counts_prior_rewards,
-            prior_policies = prior_policies,
-            counts_prior_policies = counts_prior_policies,
-            prior_states = prior_states,
-            na = na,
-            env = env,
-            approx_pred_pol = approx_pred_pol,
-            approx_pred_rew = approx_pred_rew)
+        '''Plot Environment reward generation matrix'''
+        fig,axes = plt.subplots(1,2,figsize=(6,3))
+        for ai, ax,title in zip([0,1], axes, ['Reward Regime 1', 'Reward Regime 2']):
+            ax.xaxis.tick_top()
+            sns.heatmap(reward_generation_matrix[:,:,ai],annot=True,ax=ax, cbar=False, cmap="viridis")
+            ax.set_xticklabels(['L1','L2','M'],minor=False)
+            ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
+            ax.set_title(title)
+
+    #PP Run Simulations
+
+    env = MultiArmedBandit(state_transition_matrix,
+                        reward_generation_matrix, 
+                        TAU=TAU,
+                        T=T,
+                        n_bandits = nb,
+                        training_protocol=training_protocol,
+                        observation_generation_matrix=observation_generation_matrix,
+                        no=no)
 
 
-
-world = World(agent, env)
-
-world.simulate_experiment()
-
-#   save_json(world, 'test.json')
-#   data = load_json('test.json')
-#   ##############################
-
-#   data = data.agent.perc
-#   post_policies = np.nan_to_num(data.posterior_policies)
-#   prior_policies = np.nan_to_num(data.prior_policies)
-#   like_policies = np.nan_to_num(data.likelihood_policies)
-#   post_context = data.posterior_context
-#   actions = data.actions
-
-#   post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
-#   prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies, post_context)
-#   like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
-
-#   plt.style.use('default')
-
-#   ### context plot
-#   plt.figure()
-#   # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-#   # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
-#   for c in range(data.nc):
-#     #plt.scatter(np.arange(TAU), post_context[:,0,c], label = f'posterior $c$={c}')
-#     plt.plot(post_context[:,0,c])
-#   plt.legend()
-#   plt.title(f"$\kappa=${kappa}")
-
-#   new_context = (data.inferred_new_context == True).nonzero()
-
-#   for ind in new_context:
-#     plt.vlines(ind,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-
-
-##############################################################################################
-  # reward entropy plot
-  # rewards = data.prior_rewards[:,0,:,:,:]
-  # reward_entropy = np.nan_to_num(rewards*np.log(rewards)).sum(axis=1).sum(axis=1)/3
-
-  # plt.figure()
-  # plt.grid()
-
-  # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-  # for c in range(data.k):
-  #   plt.scatter(np.arange(TAU), reward_entropy[:,c], label = f'entropy $c$={c}')
-  # plt.legend()
-
-
-  # # ACTION PLOT
-  # plt.figure()
-  # plt.grid()
-  # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-  # plt.scatter(np.arange(TAU), actions, label = 'action')
-  # plt.legend()
+    agent = HDP(lambda_H = counts,
+                TAU=TAU,
+                T=T,
+                gamma=gamma,
+                alpha=alpha,
+                kappa=kappa,
+                state_transition_matrix = state_transition_matrix,
+                observation_generation_matrix = observation_generation_matrix,
+                utility = utility,
+                policies = policies,
+            #  prior_rewards = prior_rewards,
+            #  counts_prior_rewards = counts_prior_rewards,
+                prior_policies = prior_policies,
+                counts_prior_policies = counts_prior_policies,
+                prior_states = prior_states,
+                na = na,
+                env = env,
+                approx_pred_pol = approx_pred_pol,
+                approx_pred_rew = approx_pred_rew,
+                h = h)
 
 
 
-  #### POLICY PLOT
-  # plt.figure()
-  # plt.grid()
-  # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-  # plt.scatter(np.arange(TAU), post_policies[:,0,1], label = 'posterior $\pi$')
-  # plt.scatter(np.arange(TAU), prior_policies[:,0,1], label = 'prior $\pi$')
-  # plt.scatter(np.arange(TAU), like_policies[:,0,1], label = 'like $\pi$')
-  # plt.legend()
+    world = World(agent, env)
+
+    world.simulate_experiment()
+
+
+    save_json(world, 'test.json')
+    data = load_json('test.json')
+    ##############################
+
+    data = data.agent
+    post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
+    prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
+    like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
+    post_context = data.posterior_context[:,:,:data.K]
+    actions = data.actions
+
+
+    plt.style.use('default')
+
+    ### CONTEXT PLOT
+    fig, ax = plt.subplots(1)
+    ax.set_ylim((0,1.05))
+    plt.grid()
+    ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+    # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+    # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
+    for c in range(data.K):
+        ax.plot(post_context[:,0,c],label=f"context: {c}")
+        ax.legend()
+        ax.set_title(fr"$\alpha=${alpha}")
+
+    new_context = (data.opened_new_context == True).nonzero()
+
+    for ind in new_context:
+        ax.vlines(ind,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+    ax.set_title("Posterior Context")
+
+
+    # #REWARD ENTROPY PLOT
+    # rewards = data.prior_rewards[1:,:,:,:data.K]
+    # reward_entropy = np.nan_to_num(-rewards*np.log(rewards)).sum(axis=1).sum(axis=1)/3
+
+
+    # plt.figure()
+    # plt.grid()
+    # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+    # for c in range(data.K):
+    #     plt.scatter(np.arange(TAU), reward_entropy[:,c], label = f'entropy $c$={c}')
+    #     plt.legend()
+
+    #POLICY PLOT
+
+    fig, ax = plt.subplots(1)
+    plt.grid()
+
+    for k in range(data.K):
+        ax.plot(np.arange(TAU), like_policies[:,0,0,k], '--x',  label = f'like_pol_0_cont_{k}')
+        ax.plot(np.arange(TAU), like_policies[:,0,1,k], '--x',  label = f'like_pol_1_cont_{k}')
+    # ax.plot(np.arange(TAU), like_policies[:,0,0,1], '-x', label = 'like_pol_0_cont_1')
+    # ax.plot(np.arange(TAU), like_policies[:,0,1,1], '-x',  label = 'like_pol_1_cont_1')
+    ax.set_ylim([0,1])
+    ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+    plt.legend()
+    ax.set_title("Policy likelihood under the different contexts")
+
+    # ACTION PLOT
+    fig, ax = plt.subplots(1)
+    plt.grid()
+    ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+    ax.scatter(np.arange(TAU), actions[:,0], marker='x', label = 'action')
+    ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+    plt.legend()
+    ax.set_title("Chosen action")
+
+
+    #### POLICY PLOT
+    post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
+    prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies[:,None,:,:], post_context)
+    like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
+    fig, ax = plt.subplots(1)
+    plt.grid()
+    ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+    ax.scatter(np.arange(TAU), post_policies[:,0,1], label = f'posterior $\pi$')
+    ax.scatter(np.arange(TAU), prior_policies[:,0,1], label = f'prior $\pi$')
+    ax.scatter(np.arange(TAU), like_policies[:,0,1], label = f'like $\pi$')
+    ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+    plt.legend()
+    ax.set_title("Beliefs over policy with context integrated out")
+
+    #### CONTEXT PLOT
+    fig, ax = plt.subplots(1)
+    plt.grid()
+    ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+    ax.scatter(np.arange(TAU), data.context, label = 'inferred context')
+    ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+    plt.legend()
+    ax.set_title("inferred_context")
+
+print(agent.K)
+for k in range(agent.K):
+    print(data.prior_rewards[-1,:,:,k].round(3),'\n')
 
 
 
 
+    # PP
 
-#   print(data.nc)
-#   for i in range(data.nc):
-#       print(data.prior_rewards[-1, 0,:,:,i].round(3),'\n')
-
-
-
-
-
-# PP
-
-# %%
+    # %%

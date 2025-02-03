@@ -1,6 +1,8 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+import json
+import jsonpickle
 
 
 
@@ -29,3 +31,19 @@ def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1):
     plt.savefig(file_title + ".png")
     plt.close()
     # return fig, axes
+
+
+def save_json(obj, fname='test.json'):
+
+    obj = jsonpickle.encode(obj)
+    
+    with open(fname,'w') as f:
+        json.dump(obj, f)
+
+def load_json(fname):
+
+    with open(fname, 'r') as f:
+        obj = json.load(f)
+        obj = jsonpickle.decode(obj)
+
+        return obj

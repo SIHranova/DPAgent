@@ -49,8 +49,8 @@ i = 0
 distance_best_fit = 10000
 
 print(f"total number of simulations: {gammas.size*alphas.size*kappas.size}")
-for gamma, alpha, kappa in product(gammas,alphas,kappas):
-# for gamma, alpha, kappa in ([[0.121, 0.003, 0.01]]):
+# for gamma, alpha, kappa in product(gammas,alphas,kappas):
+for gamma, alpha, kappa in ([[0.121, 0.003, 0.01]]):
 
     # run inference
     agent = HDP_speaker_discretization()
