@@ -12,7 +12,7 @@ def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1):
         data = [data]
         title = [title]
         
-    fig, axes = plt.subplots(1,len(data), figsize=(6*len(data), 6))
+    fig, axes = plt.subplots(1,len(data), figsize=(4*len(data), 4))
     if not isinstance(axes, np.ndarray):
         axes = np.array([axes])
 
@@ -28,7 +28,8 @@ def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1):
         # g.set_x_
 
     # plt.show()
-    plt.savefig(file_title + ".png")
+    plt.suptitle("Learned Reward Contingencies")
+    plt.savefig(file_title + ".png",dpi=300)
     plt.close()
     # return fig, axes
 

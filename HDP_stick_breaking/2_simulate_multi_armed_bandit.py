@@ -13,7 +13,7 @@ from environment import MultiArmedBandit
 from agent import HDP
 from world import World
 
-
+plt.rcParams['figure.dpi'] = 300
 np.random.seed(324243242)
 
 # Task setup parameters
@@ -36,25 +36,25 @@ h = 1000
 approx_pred_pol = True
 approx_pred_rew = True
 
-# gamma = .121
-# alpha = 0.003
-# kappa = 0.01
 
 gammas = np.arange(1.6,2,0.05)
 alphas = np.arange(2.1,2.7,0.05) #[1.9]#[2.1]
 kappas = np.arange(0.1,0.7,0.1)
 
+gammas = np.array([1.7])
+alphas = np.array([2])
+kappas = np.array([0.5])
 sim_params = product(alphas, gammas, kappas)
 
 print(f"-----------------------------------")
 print(f"{alphas.size*kappas.size*gammas.size} simulations to run")
 
 
-sim_data = np.zeros([alphas.size*kappas.size*gammas.size,4])
-
+rep = 5
+sim_data = np.zeros([np.array(alphas.size)*kappas.size*gammas.size*rep,4])
 i = -1
 for alpha, gamma, kappa in sim_params:
-    for rep in range(1):
+    for rep in range(rep):
 
         i+=1
 
@@ -205,7 +205,7 @@ for alpha, gamma, kappa in sim_params:
             ###
 
             Q_rew = agent.prior_rewards[-1,:,:,:agent.K]  + 1e-10      # inferred speaker distributions over words
-            P_rew = reward_generation_matrix        + 1e-10      # true speaker distributions over words
+            P_rew = reward_generation_matrix              + 1e-10      # true speaker distributions over words
 
             labels = np.zeros(2,dtype=int)                  # which learned distribution corresponds to which true distribution 
             true_divergence = np.zeros(2)                   # distance between inferred and true distribution once labels allocated
@@ -228,20 +228,116 @@ for alpha, gamma, kappa in sim_params:
             ###
                     
 
-            # plots = [Q_rew[:,:,k] for k in range(agent.K)]
-            # titles = [None for k in range(agent.K)]
-            # titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
+            plots = [Q_rew[:,:,k] for k in range(agent.K)]
+            titles = [None for k in range(agent.K)]
+            titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
 
-            # file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
+            file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
 
-            # plot_heatmap(data=plots, file_title=file_title, title=titles)
+            plot_heatmap(data=plots, file_title=file_title)#, title=titles)
     
+            sim_data[i] = np.array([alpha, gamma, kappa, true_divergence.mean().round(5)])
+
+
+            data = agent
+            post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
+            prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
+            like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
+            post_context = data.posterior_context[:,:,:data.K]
+            actions = data.actions
+
+
+            plt.style.use('default')
+
+            ### CONTEXT PLOT
+            fig, ax = plt.subplots(1, figsize=(5,3))
+            ax.set_ylim((0,1.05))
+            plt.grid(axis="x")
+            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+            # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
+            for c in range(data.K):
+                ax.plot(post_context[:,0,c],label=f"context {c}")
+                ax.legend()
+                ax.set_title(fr"$\alpha=${alpha}")
+
+            new_context = (data.opened_new_context == True).nonzero()
+
+            for ind in new_context:
+                ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
+            ax.set_title("Posterior Context")
+            ax.legend(loc="lower right", framealpha=1)
+
+            plt.savefig("test.png",dpi=300)
+
+            # #REWARD ENTROPY PLOT
+            # rewards = data.prior_rewards[1:,:,:,:data.K]
+            # reward_entropy = np.nan_to_num(-rewards*np.log(rewards)).sum(axis=1).sum(axis=1)/3
+
+
+            # plt.figure()
+            # plt.grid()
+            # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+            # for c in range(data.K):
+            #     plt.scatter(np.arange(TAU), reward_entropy[:,c], label = f'entropy $c$={c}')
+            #     plt.legend()
+
+            #POLICY PLOT
+
+            fig, ax = plt.subplots(1)
+            plt.grid()
+
+            for k in range(data.K):
+                ax.plot(np.arange(TAU), like_policies[:,0,0,k], '--x',  label = f'like_pol_0_cont_{k}')
+                ax.plot(np.arange(TAU), like_policies[:,0,1,k], '--x',  label = f'like_pol_1_cont_{k}')
+            # ax.plot(np.arange(TAU), like_policies[:,0,0,1], '-x', label = 'like_pol_0_cont_1')
+            # ax.plot(np.arange(TAU), like_policies[:,0,1,1], '-x',  label = 'like_pol_1_cont_1')
+            ax.set_ylim([0,1])
+            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            plt.legend()
+            ax.set_title("Policy likelihood under the different contexts")
+
+            # ACTION PLOT
+            fig, ax = plt.subplots(1)
+            plt.grid()
+            ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+            ax.scatter(np.arange(TAU), actions[:,0], marker='x', label = 'action')
+            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            plt.legend()
+            ax.set_title("Chosen action")
+
+
+            #### POLICY PLOT
+            post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
+            prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies[:,None,:,:], post_context)
+            like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
+            fig, ax = plt.subplots(1)
+            plt.grid()
+            ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+            ax.scatter(np.arange(TAU), post_policies[:,0,1], label = f'posterior $\pi$')
+            ax.scatter(np.arange(TAU), prior_policies[:,0,1], label = f'prior $\pi$')
+            ax.scatter(np.arange(TAU), like_policies[:,0,1], label = f'like $\pi$')
+            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            plt.legend()
+            ax.set_title("Beliefs over policy with context integrated out")
+
+            #### CONTEXT PLOT
+            fig, ax = plt.subplots(1)
+            plt.grid()
+            ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+            ax.scatter(np.arange(TAU), data.context, label = 'inferred context')
+            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            plt.legend()
+            ax.set_title("inferred_context")
+
+            print(agent.K)
+            for k in range(agent.K):
+                print(data.prior_rewards[-1,:,:,k].round(3),'\n')
 
     
         print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, K: {agent.K}")
         
 
-        sim_data[i] = np.array([alpha, gamma, kappa, true_divergence.mean().round(5)])
 
 #%%
 
@@ -271,95 +367,4 @@ plt.show()
 
 
 
-        # data = agent
-        # post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
-        # prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
-        # like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
-        # post_context = data.posterior_context[:,:,:data.K]
-        # actions = data.actions
 
-
-        # plt.style.use('default')
-
-        # ### CONTEXT PLOT
-        # fig, ax = plt.subplots(1)
-        # ax.set_ylim((0,1.05))
-        # plt.grid()
-        # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-        # # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-        # # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
-        # for c in range(data.K):
-        #     ax.plot(post_context[:,0,c],label=f"context: {c}")
-        #     ax.legend()
-        #     ax.set_title(fr"$\alpha=${alpha}")
-
-        # new_context = (data.opened_new_context == True).nonzero()
-
-        # for ind in new_context:
-        #     ax.vlines(ind,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-        # ax.set_title("Posterior Context")
-
-
-        # # #REWARD ENTROPY PLOT
-        # # rewards = data.prior_rewards[1:,:,:,:data.K]
-        # # reward_entropy = np.nan_to_num(-rewards*np.log(rewards)).sum(axis=1).sum(axis=1)/3
-
-
-        # # plt.figure()
-        # # plt.grid()
-        # # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-        # # for c in range(data.K):
-        # #     plt.scatter(np.arange(TAU), reward_entropy[:,c], label = f'entropy $c$={c}')
-        # #     plt.legend()
-
-        # #POLICY PLOT
-
-        # fig, ax = plt.subplots(1)
-        # plt.grid()
-
-        # for k in range(data.K):
-        #     ax.plot(np.arange(TAU), like_policies[:,0,0,k], '--x',  label = f'like_pol_0_cont_{k}')
-        #     ax.plot(np.arange(TAU), like_policies[:,0,1,k], '--x',  label = f'like_pol_1_cont_{k}')
-        # # ax.plot(np.arange(TAU), like_policies[:,0,0,1], '-x', label = 'like_pol_0_cont_1')
-        # # ax.plot(np.arange(TAU), like_policies[:,0,1,1], '-x',  label = 'like_pol_1_cont_1')
-        # ax.set_ylim([0,1])
-        # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-        # plt.legend()
-        # ax.set_title("Policy likelihood under the different contexts")
-
-        # # ACTION PLOT
-        # fig, ax = plt.subplots(1)
-        # plt.grid()
-        # ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-        # ax.scatter(np.arange(TAU), actions[:,0], marker='x', label = 'action')
-        # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-        # plt.legend()
-        # ax.set_title("Chosen action")
-
-
-        # #### POLICY PLOT
-        # post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
-        # prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies[:,None,:,:], post_context)
-        # like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
-        # fig, ax = plt.subplots(1)
-        # plt.grid()
-        # ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-        # ax.scatter(np.arange(TAU), post_policies[:,0,1], label = f'posterior $\pi$')
-        # ax.scatter(np.arange(TAU), prior_policies[:,0,1], label = f'prior $\pi$')
-        # ax.scatter(np.arange(TAU), like_policies[:,0,1], label = f'like $\pi$')
-        # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-        # plt.legend()
-        # ax.set_title("Beliefs over policy with context integrated out")
-
-        # #### CONTEXT PLOT
-        # fig, ax = plt.subplots(1)
-        # plt.grid()
-        # ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-        # ax.scatter(np.arange(TAU), data.context, label = 'inferred context')
-        # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-        # plt.legend()
-        # ax.set_title("inferred_context")
-
-        # print(agent.K)
-        # for k in range(agent.K):
-        #     print(data.prior_rewards[-1,:,:,k].round(3),'\n')
