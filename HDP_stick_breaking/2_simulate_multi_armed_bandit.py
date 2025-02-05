@@ -13,7 +13,7 @@ from environment import MultiArmedBandit
 from agent import HDP
 from world import World
 
-plt.rcParams['figure.dpi'] = 300
+plt.rcParams['figure.dpi'] = 100
 np.random.seed(324243242)
 
 # Task setup parameters
@@ -37,24 +37,27 @@ approx_pred_pol = True
 approx_pred_rew = True
 
 
-gammas = np.arange(1.6,2,0.05)
-alphas = np.arange(2.1,2.7,0.05) #[1.9]#[2.1]
-kappas = np.arange(0.1,0.7,0.1)
+gammas = np.arange(1,2,0.05)
+alphas = np.arange(1,2.7,0.05) #[1.9]#[2.1]
+kappas = np.arange(0.1,1.5,0.1)
 
-gammas = np.array([1.7])
-alphas = np.array([2])
-kappas = np.array([0.5])
+# gammas = np.array([1.7])
+# alphas = np.array([1.8])
+# kappas = np.array([0.5])
 sim_params = product(alphas, gammas, kappas)
+reps = 5
 
+
+sim_data = np.zeros([np.array(alphas.size)*kappas.size*gammas.size*reps,6])
+
+debug = [True, False, False, True,False]
 print(f"-----------------------------------")
-print(f"{alphas.size*kappas.size*gammas.size} simulations to run")
-
-
-rep = 5
-sim_data = np.zeros([np.array(alphas.size)*kappas.size*gammas.size*rep,4])
+print(f"{alphas.size*kappas.size*gammas.size*reps} simulations to run")
 i = -1
 for alpha, gamma, kappa in sim_params:
-    for rep in range(rep):
+    for rep in range(reps):
+
+        print("#######################################################")
 
         i+=1
 
@@ -125,12 +128,12 @@ for alpha, gamma, kappa in sim_params:
 
         '''   define Env reward generation matrix '''
         reward_generation_matrix =  np.array([[[0.9, 0.1, 0], 
-                                            [0.1, 0.9, 0], 
-                                            [0  , 0  , 1]], 
+                                               [0.1, 0.9, 0], 
+                                               [0  , 0  , 1]], 
                                             
-                                            [[0.1, 0.9, 0], 
-                                            [0.9, 0.1, 0], 
-                                            [0  , 0  , 1]]]).transpose(1,2,0)
+                                              [[0.1, 0.9, 0], 
+                                               [0.9, 0.1, 0], 
+                                               [0  , 0  , 1]]]).transpose(1,2,0)
 
 
         #PP Plot task setup
@@ -192,7 +195,8 @@ for alpha, gamma, kappa in sim_params:
                     env = env,
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
-                    h = h)
+                    h = h,
+                    debug=debug[rep])
 
 
 
@@ -228,16 +232,16 @@ for alpha, gamma, kappa in sim_params:
             ###
                     
 
-            plots = [Q_rew[:,:,k] for k in range(agent.K)]
-            titles = [None for k in range(agent.K)]
-            titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
+            plots = [Q_rew[:2,:2,k] for k in range(agent.K)]
+            plots = [Q/Q.sum(axis=0) for Q in plots]
+
+            # plots = [Q_rew[:,:,k] for k in range(agent.K)]
+            # titles = [None for k in range(agent.K)]
+            # titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
 
             file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
 
             plot_heatmap(data=plots, file_title=file_title)#, title=titles)
-    
-            sim_data[i] = np.array([alpha, gamma, kappa, true_divergence.mean().round(5)])
-
 
             data = agent
             post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
@@ -247,7 +251,7 @@ for alpha, gamma, kappa in sim_params:
             actions = data.actions
 
 
-            plt.style.use('default')
+            # plt.style.use('default')
 
             ### CONTEXT PLOT
             fig, ax = plt.subplots(1, figsize=(5,3))
@@ -268,7 +272,8 @@ for alpha, gamma, kappa in sim_params:
             ax.set_title("Posterior Context")
             ax.legend(loc="lower right", framealpha=1)
 
-            plt.savefig("test.png",dpi=300)
+            plt.show()
+            # plt.savefig("test.png",dpi=300)
 
             # #REWARD ENTROPY PLOT
             # rewards = data.prior_rewards[1:,:,:,:data.K]
@@ -282,83 +287,115 @@ for alpha, gamma, kappa in sim_params:
             #     plt.scatter(np.arange(TAU), reward_entropy[:,c], label = f'entropy $c$={c}')
             #     plt.legend()
 
-            #POLICY PLOT
+            # # POLICY PLOT
 
-            fig, ax = plt.subplots(1)
-            plt.grid()
+            # fig, ax = plt.subplots(1)
+            # plt.grid()
 
-            for k in range(data.K):
-                ax.plot(np.arange(TAU), like_policies[:,0,0,k], '--x',  label = f'like_pol_0_cont_{k}')
-                ax.plot(np.arange(TAU), like_policies[:,0,1,k], '--x',  label = f'like_pol_1_cont_{k}')
-            # ax.plot(np.arange(TAU), like_policies[:,0,0,1], '-x', label = 'like_pol_0_cont_1')
-            # ax.plot(np.arange(TAU), like_policies[:,0,1,1], '-x',  label = 'like_pol_1_cont_1')
-            ax.set_ylim([0,1])
-            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-            plt.legend()
-            ax.set_title("Policy likelihood under the different contexts")
+            # for k in range(data.K):
+            #     ax.plot(np.arange(TAU), like_policies[:,0,0,k], '--x',  label = f'like_pol_0_cont_{k}')
+            #     ax.plot(np.arange(TAU), like_policies[:,0,1,k], '--x',  label = f'like_pol_1_cont_{k}')
+            # # ax.plot(np.arange(TAU), like_policies[:,0,0,1], '-x', label = 'like_pol_0_cont_1')
+            # # ax.plot(np.arange(TAU), like_policies[:,0,1,1], '-x',  label = 'like_pol_1_cont_1')
+            # ax.set_ylim([0,1])
+            # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            # plt.legend()
+            # ax.set_title("Policy likelihood under the different contexts")
 
             # ACTION PLOT
             fig, ax = plt.subplots(1)
             plt.grid()
             ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-            ax.scatter(np.arange(TAU), actions[:,0], marker='x', label = 'action')
+            ax.scatter(np.arange(40), actions[:40,0], marker='x', label = 'action')
             ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             plt.legend()
             ax.set_title("Chosen action")
 
 
-            #### POLICY PLOT
-            post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
-            prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies[:,None,:,:], post_context)
-            like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
-            fig, ax = plt.subplots(1)
-            plt.grid()
-            ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-            ax.scatter(np.arange(TAU), post_policies[:,0,1], label = f'posterior $\pi$')
-            ax.scatter(np.arange(TAU), prior_policies[:,0,1], label = f'prior $\pi$')
-            ax.scatter(np.arange(TAU), like_policies[:,0,1], label = f'like $\pi$')
-            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-            plt.legend()
-            ax.set_title("Beliefs over policy with context integrated out")
+            # #### POLICY PLOT
+            # post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
+            # prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies[:,None,:,:], post_context)
+            # like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
+            # fig, ax = plt.subplots(1)
+            # plt.grid()
+            # ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+            # ax.scatter(np.arange(TAU), post_policies[:,0,1], label = f'posterior $\pi$')
+            # ax.scatter(np.arange(TAU), prior_policies[:,0,1], label = f'prior $\pi$')
+            # ax.scatter(np.arange(TAU), like_policies[:,0,1], label = f'like $\pi$')
+            # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            # plt.legend()
+            # ax.set_title("Beliefs over policy with context integrated out")
 
             #### CONTEXT PLOT
             fig, ax = plt.subplots(1)
             plt.grid()
-            ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+            ax.vlines(switch,ymin=0,ymax=1, color = 'r', linestyle='--', alpha=0.5)
+            for ind in new_context:
+                ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
             ax.scatter(np.arange(TAU), data.context, label = 'inferred context')
             ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             plt.legend()
             ax.set_title("inferred_context")
 
-            print(agent.K)
-            for k in range(agent.K):
-                print(data.prior_rewards[-1,:,:,k].round(3),'\n')
+            # print(agent.K)
+            # for k in range(agent.K):
+            #     print(data.prior_rewards[-1,:,:,k].round(3),'\n')
 
-    
-        print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, K: {agent.K}")
+        else:
+            true_divergence = np.array([2,2])
+        sim_data[i] = np.array([rep, alpha, gamma, kappa, true_divergence.mean().round(5), agent.K])
+
+        if i%500 == 0:
+            print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, K: {agent.K}")
         
-
+        
+df = pd.DataFrame(data = sim_data, columns = ["rep","alpha","gamma","kappa","distribution_distance","K"])
+df.to_csv("sim_params.csv")
 
 #%%
 
-df = pd.DataFrame(data = sim_data, columns = ["alpha","gamma","kappa","distribution_distance"])
 df = df.dropna()
 df = df.loc[~(df==0).all(axis=1)]
 
 
-# Create a 3D scatter plot
-fig = plt.figure(figsize=(10, 8))
-ax = fig.add_subplot(111, projection='3d')
-# Scatter plot with color mapping for performance
-scatter = ax.scatter(df['alpha'], df['gamma'], df['kappa'], c=df['distribution_distance'], cmap='viridis', s=40)
-# Add labels
-ax.set_xlabel('alpha')
-ax.set_ylabel('gamma')
-ax.set_zlabel('kappa')
-# Add a colorbar
-cbar = fig.colorbar(scatter)
-cbar.set_label('Average DKL[Q_reward||P_reward]')
-plt.show()
+for rep in range(reps):
+
+    # Create a 3D scatter plot
+    rep_df = df[df["rep"] == rep]
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    # Scatter plot with color mapping for performance
+    scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], rep_df['kappa'], c=rep_df['distribution_distance'], cmap='viridis', s=40)
+    # Add labels
+    ax.set_xlabel('alpha')
+    ax.set_ylabel('gamma')
+    ax.set_zlabel('kappa')
+    # Add a colorbar
+    cbar = fig.colorbar(scatter)
+    cbar.set_label('Average DKL[Q_reward||P_reward]')
+    plt.show()
+
+
+
+for rep in range(reps):
+
+    # Create a 3D scatter plot
+    rep_df = df[df["rep"] == rep]
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    # Scatter plot with color mapping for performance
+    scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], rep_df['kappa'], c=rep_df['K'], cmap='viridis', s=40)
+    # Add labels
+    ax.set_xlabel('alpha')
+    ax.set_ylabel('gamma')
+    ax.set_zlabel('kappa')
+    # Add a colorbar
+    cbar = fig.colorbar(scatter)
+    cbar.set_label('Average DKL[Q_reward||P_reward]')
+    plt.show()
+
+
+#%%
 
 
 

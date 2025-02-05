@@ -24,11 +24,9 @@ def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1):
         if title is not None:
             ax.set_title(title[ai])
         
-        # ax.set_xticks(fontsize=12)
-        # g.set_x_
 
     # plt.show()
-    plt.suptitle("Learned Reward Contingencies")
+    # plt.suptitle("Learned Reward Contingencies")
     plt.savefig(file_title + ".png",dpi=300)
     plt.close()
     # return fig, axes

@@ -62,7 +62,7 @@ for gamma, alpha, kappa in ([[0.121, 0.003, 0.01]]):
     # if inferred the right number of contexts
     if agent.K == 3:
         Q_rew = agent.generative_model_obs[:,:agent.K]        # inferred speaker distributions over words
-        P_rew = env.component_params_true                         # true speaker distributions over words
+        P_rew = env.component_params_true                     # true speaker distributions over words
 
         labels = np.zeros(3,dtype=int)                  # which learned distribution corresponds to which true distribution 
         true_divergence = np.zeros(3)                   # distance between inferred and true distribution once labels allocated

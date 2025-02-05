@@ -34,6 +34,7 @@ class HDP():
                  approx_pred_rew = None,
                  h=1000,
                  debug = False,
+                 dec_temp = 3,
                 ):
         
         self.debug = debug
@@ -65,6 +66,7 @@ class HDP():
         self.approx_pred_rew = approx_pred_rew
 
         self.h = h
+        self.dec_temp = dec_temp
 
 
     def initialize_beliefs(self):
@@ -216,7 +218,7 @@ class HDP():
         
         likelihood = np.zeros([self.npi, self.max_context])
         likelihood[:,:self.K+1] = self.fwd_norms.prod(axis=0)                      # exp(log(norms)) = -F(pi,c)
-        posterior_policies  = likelihood*self.prior_policies[tau]     # exp(digamma(alpha_ij) - digamma(alpha_j)) when you integrate theta out
+        posterior_policies  = np.power(likelihood,self.dec_temp)*self.prior_policies[tau]     # exp(digamma(alpha_ij) - digamma(alpha_j)) when you integrate theta out
         posterior_policies /= posterior_policies.sum(axis=0)
         posterior_policies = np.nan_to_num(posterior_policies)
         # store in global log
@@ -229,7 +231,8 @@ class HDP():
 
     def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies):
 
-
+        if tau == 1 and t == 0:
+            a =0 
         if tau < 2:
             prior_context = self.prior_context
         else:
@@ -249,7 +252,8 @@ class HDP():
             context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
             context_likelihood[:self.K+1] = softmax(context_likelihood[:self.K+1])
         else:
-            context_likelihood = np.ones(self.max_context)
+            context_likelihood = np.zeros(self.max_context)
+            context_likelihood[:self.K+1] = 1
             # context_likelihood[:self.K+1] = 1
 
         if t==self.T-1:
@@ -267,11 +271,11 @@ class HDP():
 
         else:
 
-            #  [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]]
             # [[p'(o_{t-1,1:W}| c_{t-1},z_{t-1})],
+            #  [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]]
             obs_messages = np.array([
-                             context_likelihood,\
-                             self.context_likelihood[tau-1]\
+                             self.context_likelihood[tau-1],\
+                             context_likelihood\
                            ])
             
             # q_z = \int_{beta} q(z|beta)q(beta)
@@ -324,6 +328,7 @@ class HDP():
 
             if current_context + 1 > self.K:         # if inferred presence of new context
                 # print(f"opened new context at tau: {tau}")
+
                 self.K += 1
                 self.opened_new_context[tau] = True
 
@@ -356,7 +361,7 @@ class HDP():
             self.global_prior = self.construct_G_0(approx=False)
 
             # update lambda of q(phi|lambda)
-            self.prior_rewards_counts[tau+1] = self.prior_rewards_counts[tau]
+            self.prior_rewards_counts[tau+1] = self.prior_rewards_counts[tau].copy()
             
             chosen_pol = np.argmax(posterior_policies[:,current_context])
             states = np.argmax(q_s[:,:,chosen_pol, current_context],axis=0)
@@ -378,7 +383,7 @@ class HDP():
             self.transition_matrix = self.construct_G_j(approx=False)
             
             #update theta p(\pi_t|c_t,\theta)
-            counts = self.prior_policies_counts[tau,:,:]
+            counts = self.prior_policies_counts[tau,:,:].copy()
             counts[chosen_pol,current_context] += 1
             self.prior_policies_counts[tau+1] = counts
             self.prior_policies[tau+1] = np.nan_to_num(counts / counts.sum(axis=0))
@@ -386,8 +391,8 @@ class HDP():
             
             # self.posterior_context[tau] = np.eye(self.max_context)[current_context]
 
-        if False: #self.debug:
-            if tau < 20:
+        if self.debug:
+            if tau < 40:
                 if self.opened_new_context[tau]:
                     self.K -= 1
                 print(f"--------------------\ntau,t: {tau,t}")
@@ -427,7 +432,8 @@ class HDP():
                     
                     print(f"prior_rewards")
                     for k in range(self.K+1):
-                        print(self.prior_rewards[tau,:,:,k].round(3))
+                        print(self.prior_rewards[tau+1,:,:,k].round(3))
+
                     print(f"\ntransition matrix counts")
                     print(f"contexts:{self.context[tau-1], self.context[tau]}")
 
@@ -436,10 +442,14 @@ class HDP():
                     print("\n")
                     print(self.transition_matrix_counts[:,:,1])
                     
+                    print(f"\ntransition matrix")
+                    print(self.transition_matrix)
+                    
+
                     print(f"\npolicy counts")
                     print(f"chosen policy:{chosen_pol}")
-                    print(self.prior_policies_counts[tau])
-                    print(self.prior_policies[tau].round(3))
+                    print(self.prior_policies_counts[tau+1])
+                    print(self.prior_policies[tau+1].round(4))
                 
                 if self.opened_new_context[tau]:
                     self.K = self.K+1
