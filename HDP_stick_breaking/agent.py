@@ -9,7 +9,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 class HDP():
-    
+
+
     def __init__(self,
                  lambda_H=np.ones(10),
                  TAU=10,
@@ -34,7 +35,8 @@ class HDP():
                  approx_pred_rew = None,
                  h=1000,
                  debug = False,
-                 dec_temp = 3,
+                 dec_temp = 1,
+                 rho = 0.2     # global prior counts forgetting rate
                 ):
         
         self.debug = debug
@@ -67,6 +69,7 @@ class HDP():
 
         self.h = h
         self.dec_temp = dec_temp
+        self.rho = rho
 
 
     def initialize_beliefs(self):
@@ -75,7 +78,7 @@ class HDP():
         self.prior_context[0] = 1                                                         # context prior p(c1)
 
         self.beta_prime = np.zeros(self.max_context)                                      # Expectation of stick break beta'_k = gamma_k1/(gamma_k1+gamma_k2) 
-        self.global_prior_counts = np.zeros([self.max_context,2])                         # parameters gamma_1, gamma_2 of beta_k: p(beta'_k|gamma_k1, gamma_k2)
+        self.global_prior_counts = np.zeros([self.TAU+1, self.max_context,2])               # parameters gamma_1, gamma_2 of beta_k: p(beta'_k|gamma_k1, gamma_k2)
         self.global_prior = np.zeros(self.max_context)                                    # p(z|gamma_1, gamma_2)  = int_b p(z|b)p(b|gamma_1, gamma_2)
         self.global_prior[0] = 1
 
@@ -240,12 +243,9 @@ class HDP():
         
 
         if t>0:
-            alphas = self.prior_policies_counts[tau]
 
-            # posterior_context =   self.ln(likelihood_policies) \
-            #                      - self.ln(posterior_policies)\
-            #                      + scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0))
-            # posterior_context = (posterior_policies*posterior_context).sum(axis=0) + self.ln(prior_context)                            
+            alphas = self.prior_policies_counts[tau]
+                       
             outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
             policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
             policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
@@ -254,7 +254,7 @@ class HDP():
         else:
             context_likelihood = np.zeros(self.max_context)
             context_likelihood[:self.K+1] = 1
-            # context_likelihood[:self.K+1] = 1
+
 
         if t==self.T-1:
             self.context_likelihood[tau] = context_likelihood
@@ -285,13 +285,7 @@ class HDP():
         # sum_{z_{t}} q(z_t) log \prod_w p'(o_tw|c_t=k,z_t=k) = log \prod_w \phi'_{wk}^{q(z_t=k)}
         obs_messages = obs_messages**q_z
         
-        # if self.debug:
-        #     print("\ncalculating q(c_t)")
-        #     print('observations and observation messages:')
-        #     print(self.observations[tau-1], self.observations[tau])
-        #     print(obs_messages)
         
-
         #  q(c_t,c_t-1)
         q_c = self.transition_matrix*prior_context[None,:]*obs_messages[0,:][None,:]*obs_messages[1,:][:,None]
         
@@ -314,16 +308,14 @@ class HDP():
         q_s = self.update_beliefs_states(t, tau, reward, action, observation)
 
         likelihood_policies, posterior_policies = self.update_beliefs_policies(t,tau)
-        
+
         q_c = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies)
-        
-        # q_policy = q_policy_given_context*q_c 
-        # action = self.sample_action(q_policy)
-        
+
 
         if t == self.T-1:
             
             current_context = np.argmax(q_c)
+
             self.context[tau] = current_context
 
             if current_context + 1 > self.K:         # if inferred presence of new context
@@ -333,10 +325,10 @@ class HDP():
                 self.opened_new_context[tau] = True
 
                 # add prior over new weight beta'_k
-                self.global_prior_counts[self.K-1] = [1,self.gamma]
+                self.global_prior_counts[tau, self.K-1] = [1,self.gamma]
                 
                 # add prior over new atom \phi_k
-                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H
+                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H # + np.random.uniform(size = self.lambda_H.shape)*0.3
 
                 # add prior over new atom \theta_k
                 self.prior_policies_counts[tau,:,self.K] = self.h
@@ -355,10 +347,16 @@ class HDP():
 
             # update posterior over global context  q(beta'|gamma)
             counts = np.zeros([self.max_context,2])
-            counts[current_context,0] += 1
-            counts[:current_context,1] += 1
-            self.global_prior_counts += counts
-            self.global_prior = self.construct_G_0(approx=False)
+            alpha_init = np.zeros([self.max_context,2])
+            alpha_init[:self.K,:] = np.array([[1,self.alpha]])
+
+            if tau > 10:
+                counts[current_context,0] += 1
+                counts[:current_context,1] += 1
+            # print(self.global_prior_counts[tau].T)              
+            self.global_prior_counts[tau+1] = self.rho*self.global_prior_counts[tau] + counts + (1-self.rho)*alpha_init
+            self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1], approx=False)
+            # print(self.global_prior_counts[tau+1].T)
 
             # update lambda of q(phi|lambda)
             self.prior_rewards_counts[tau+1] = self.prior_rewards_counts[tau].copy()
@@ -420,7 +418,7 @@ class HDP():
                         print("opened new context!")
 
                     print(f"\nglobal prior counts")
-                    print(self.global_prior_counts.T)
+                    print(self.global_prior_counts[tau+1].T)
 
                     print(f"\nglobal prior")
                     print(self.global_prior.round(3))
@@ -456,12 +454,12 @@ class HDP():
         # return action
 
 
-    def construct_G_0(self, approx=False):
+    def construct_G_0(self, global_prior_counts, approx=False):
 
         global_prior = np.zeros(self.max_context)
         
         if not approx:
-            beta_prime = np.nan_to_num(self.global_prior_counts/self.global_prior_counts.sum(axis=1)[:,None])  # expected b_k'            
+            beta_prime = np.nan_to_num(global_prior_counts/global_prior_counts.sum(axis=1)[:,None])  # expected b_k'            
             beta_prime_l = np.insert(np.cumprod(beta_prime[:,1]),0,1)                                   #  prod_l=1^k-1 (1-beta'_l)
             beta_prime_k = np.insert(beta_prime[:,0], self.K, 1)
 
@@ -472,12 +470,12 @@ class HDP():
 
         else:
         
-            beta_prime = digamma(self.global_prior_counts)
+            beta_prime = digamma(global_prior_counts)
             beta_prime_l = np.insert(np.cumsum(beta_prime[:,1]),0,0)
             beta_prime_k = np.insert(beta_prime[:,0],self.K,0)
             
-            # print(digamma(self.global_prior_counts.sum(axis=1))) 
-            norm = np.cumsum(digamma(self.global_prior_counts.sum(axis=1)))
+            # print(digamma(global_prior_counts.sum(axis=1))) 
+            norm = np.cumsum(digamma(global_prior_counts.sum(axis=1)))
             norm = np.insert(norm, self.K, norm[self.K-1])
             
             for k in range(self.K+1):
@@ -485,7 +483,7 @@ class HDP():
             
             global_prior[:self.K+1] = softmax(global_prior[:self.K+1])
             
-        # print(f"global_prior:\n {self.global_prior_counts}, {global_prior}")
+        # print(f"global_prior:\n {global_prior_counts}, {global_prior}")
 
         return global_prior
 
@@ -582,8 +580,8 @@ class HDP():
 
 #         else:
 
-#             # [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]
 #             # [p'(o_{t-1,1:W}| c_{t-1},z_{t-1})],
+#             # [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]
 #             obs_messages = np.array([
 #                              self.generative_model_obs[self.observations[tau-1]].prod(axis=0),\
 #                              self.generative_model_obs[self.observations[tau]].prod(axis=0)\

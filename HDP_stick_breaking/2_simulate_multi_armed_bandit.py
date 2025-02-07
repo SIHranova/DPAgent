@@ -37,27 +37,39 @@ approx_pred_pol = True
 approx_pred_rew = True
 
 
-gammas = np.arange(1,2,0.05)
-alphas = np.arange(1,2.7,0.05) #[1.9]#[2.1]
-kappas = np.arange(0.1,1.5,0.1)
+gammas = np.arange(0.1,0.4,0.05)
+alphas = np.arange(1,1.6,0.05) #[1.9]#[2.1]
+kappas = np.arange(0.05,0.1,0.01)
+# rhos = np.arange(0.9,1, 0.01)
+rhos = np.array([0.995])
 
+# alpha = 3
 # gammas = np.array([1.7])
-# alphas = np.array([1.8])
+# alphas = np.array([2])
 # kappas = np.array([0.5])
-sim_params = product(alphas, gammas, kappas)
-reps = 5
 
+gammas = np.array([0.2])
+alphas = np.array([1.6])
+kappas = np.array([0.1])
 
-sim_data = np.zeros([np.array(alphas.size)*kappas.size*gammas.size*reps,6])
+sim_params = product(alphas, gammas, kappas,rhos)
+reps = 10
 
-debug = [True, False, False, True,False]
+sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rhos.size*reps,7])
+
+debug = [False for rep in range(reps)]
+debug[4] = False
+# debug = [False, False, False, False,False]
+
 print(f"-----------------------------------")
-print(f"{alphas.size*kappas.size*gammas.size*reps} simulations to run")
+print(f"{alphas.size*kappas.size*gammas.size*rhos.size*reps} simulations to run")
 i = -1
-for alpha, gamma, kappa in sim_params:
+
+#%%
+for alpha, gamma, kappa, rho in sim_params:
     for rep in range(reps):
 
-        print("#######################################################")
+        # print("#######################################################")
 
         i+=1
 
@@ -196,7 +208,8 @@ for alpha, gamma, kappa in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=debug[rep])
+                    debug=debug[rep],
+                    rho=rho)
 
 
 
@@ -211,9 +224,9 @@ for alpha, gamma, kappa in sim_params:
             Q_rew = agent.prior_rewards[-1,:,:,:agent.K]  + 1e-10      # inferred speaker distributions over words
             P_rew = reward_generation_matrix              + 1e-10      # true speaker distributions over words
 
-            labels = np.zeros(2,dtype=int)                  # which learned distribution corresponds to which true distribution 
-            true_divergence = np.zeros(2)                   # distance between inferred and true distribution once labels allocated
-            divergences = np.zeros((2,agent.K))                   # distance between inferred distribution and all three possible true distributions
+            labels = np.zeros(2,dtype=int)                             # which learned distribution corresponds to which true distribution 
+            true_divergence = np.zeros(2)                              # distance between inferred and true distribution once labels allocated
+            divergences = np.zeros((2,agent.K))                        # distance between inferred distribution and all three possible true distributions
 
             # transition matrix with last row removed
             # tm = (agent.transition_matrix[:agent.K,:agent.K]/agent.transition_matrix[:agent.K,:agent.K].sum(axis=0)[None,:])
@@ -232,16 +245,16 @@ for alpha, gamma, kappa in sim_params:
             ###
                     
 
-            plots = [Q_rew[:2,:2,k] for k in range(agent.K)]
-            plots = [Q/Q.sum(axis=0) for Q in plots]
+            # plots = [Q_rew[:2,:2,k] for k in range(agent.K)]
+            # plots = [Q/Q.sum(axis=0) for Q in plots]
 
-            # plots = [Q_rew[:,:,k] for k in range(agent.K)]
-            # titles = [None for k in range(agent.K)]
-            # titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
+            plots = [Q_rew[:,:,k] for k in range(agent.K)]
+            titles = [None for k in range(agent.K)]
+            titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
 
             file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
 
-            plot_heatmap(data=plots, file_title=file_title)#, title=titles)
+            plot_heatmap(data=plots, file_title=file_title, title=titles)
 
             data = agent
             post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
@@ -253,7 +266,7 @@ for alpha, gamma, kappa in sim_params:
 
             # plt.style.use('default')
 
-            ### CONTEXT PLOT
+            ## CONTEXT PLOT
             fig, ax = plt.subplots(1, figsize=(5,3))
             ax.set_ylim((0,1.05))
             plt.grid(axis="x")
@@ -272,7 +285,6 @@ for alpha, gamma, kappa in sim_params:
             ax.set_title("Posterior Context")
             ax.legend(loc="lower right", framealpha=1)
 
-            plt.show()
             # plt.savefig("test.png",dpi=300)
 
             # #REWARD ENTROPY PLOT
@@ -303,13 +315,13 @@ for alpha, gamma, kappa in sim_params:
             # ax.set_title("Policy likelihood under the different contexts")
 
             # ACTION PLOT
-            fig, ax = plt.subplots(1)
-            plt.grid()
-            ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-            ax.scatter(np.arange(40), actions[:40,0], marker='x', label = 'action')
-            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-            plt.legend()
-            ax.set_title("Chosen action")
+            # fig, ax = plt.subplots(1)
+            # plt.grid()
+            # ax.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+            # ax.scatter(np.arange(40), actions[:40,0], marker='x', label = 'action')
+            # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            # plt.legend()
+            # ax.set_title("Chosen action")
 
 
             # #### POLICY PLOT
@@ -326,16 +338,16 @@ for alpha, gamma, kappa in sim_params:
             # plt.legend()
             # ax.set_title("Beliefs over policy with context integrated out")
 
-            #### CONTEXT PLOT
-            fig, ax = plt.subplots(1)
-            plt.grid()
-            ax.vlines(switch,ymin=0,ymax=1, color = 'r', linestyle='--', alpha=0.5)
-            for ind in new_context:
-                ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
-            ax.scatter(np.arange(TAU), data.context, label = 'inferred context')
-            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-            plt.legend()
-            ax.set_title("inferred_context")
+            ### CONTEXT PLOT
+            # fig, ax = plt.subplots(1)
+            # plt.grid()
+            # ax.vlines(switch,ymin=0,ymax=1, color = 'r', linestyle='--', alpha=0.5)
+            # for ind in new_context:
+            #     ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
+            # ax.scatter(np.arange(TAU), data.context, label = 'inferred context')
+            # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            # plt.legend()
+            # ax.set_title("inferred_context")
 
             # print(agent.K)
             # for k in range(agent.K):
@@ -343,25 +355,29 @@ for alpha, gamma, kappa in sim_params:
 
         else:
             true_divergence = np.array([2,2])
-        sim_data[i] = np.array([rep, alpha, gamma, kappa, true_divergence.mean().round(5), agent.K])
+        sim_data[i] = np.array([rep, alpha, gamma, kappa, rho, true_divergence.mean().round(5), agent.K])
 
         if i%500 == 0:
-            print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, K: {agent.K}")
+            print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho,6)}, K: {agent.K}")
+
+# plt.show()
+#%%
         
-        
-df = pd.DataFrame(data = sim_data, columns = ["rep","alpha","gamma","kappa","distribution_distance","K"])
-df.to_csv("sim_params.csv")
+# df.to_csv("regularize_beta_sim_params.csv")
+df = pd.DataFrame(data = sim_data, columns = ["rep","alpha","gamma","kappa","rho","distribution_distance","K"])
 
 #%%
 
 df = df.dropna()
-df = df.loc[~(df==0).all(axis=1)]
+# df = df.loc[~(df==0).all(axis=1)]
 
 
-for rep in range(reps):
-
+for rep in range(1):
+    # for kappa in kappas:
     # Create a 3D scatter plot
     rep_df = df[df["rep"] == rep]
+    # rep_df = df[df["kappa"] == kappa]
+
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     # Scatter plot with color mapping for performance
@@ -370,6 +386,7 @@ for rep in range(reps):
     ax.set_xlabel('alpha')
     ax.set_ylabel('gamma')
     ax.set_zlabel('kappa')
+    ax.set_title(f"kappa: {kappa}")
     # Add a colorbar
     cbar = fig.colorbar(scatter)
     cbar.set_label('Average DKL[Q_reward||P_reward]')
@@ -377,10 +394,12 @@ for rep in range(reps):
 
 
 
-for rep in range(reps):
-
+for rep in range(1):
+    # for kappa in kappas:
     # Create a 3D scatter plot
     rep_df = df[df["rep"] == rep]
+    # rep_df = df[df["kappa"] == kappa]
+
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     # Scatter plot with color mapping for performance
@@ -389,13 +408,34 @@ for rep in range(reps):
     ax.set_xlabel('alpha')
     ax.set_ylabel('gamma')
     ax.set_zlabel('kappa')
+    ax.set_title(f"kappa: {kappa}")
     # Add a colorbar
     cbar = fig.colorbar(scatter)
     cbar.set_label('Average DKL[Q_reward||P_reward]')
     plt.show()
-
-
 #%%
+
+kappa = kappas[0]
+# Create a 3D scatter plot
+
+# Scatter plot with color mapping for performance
+for kappa in kappas:
+    rep_df = df[df["rep"] == 0]
+    rep_df = rep_df[rep_df["kappa"] == kappa]
+    # rep_df = rep_df[rep_df["gamma"] == gamma]
+
+    fig = plt.figure(figsize=(5, 5))
+    ax = fig.add_subplot(111)
+    scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], c=rep_df['distribution_distance'], cmap='viridis', s=40)
+    # Add labels
+    ax.set_xlabel('alpha')
+    ax.set_ylabel('gamma')    # Add a colorbar
+    cbar = fig.colorbar(scatter)
+    cbar.set_label('Average DKL[Q_reward||P_reward]')
+    ax.set_title(f"kappa: {kappa}")
+plt.show()
+
+# #%%
 
 
 
