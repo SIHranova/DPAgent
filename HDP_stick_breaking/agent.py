@@ -234,8 +234,7 @@ class HDP():
 
     def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies):
 
-        if tau == 1 and t == 0:
-            a =0 
+
         if tau < 2:
             prior_context = self.prior_context
         else:
@@ -263,20 +262,14 @@ class HDP():
 
         if tau == 0:
             
-            obs_messages = np.array([context_likelihood,\
-                                     np.ones(self.max_context)\
-                                    ])
-
+            obs_messages = np.array([context_likelihood, np.ones(self.max_context)])
             q_z = np.array([self.global_prior, np.ones(self.max_context)])
 
         else:
 
             # [[p'(o_{t-1,1:W}| c_{t-1},z_{t-1})],
             #  [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]]
-            obs_messages = np.array([
-                             self.context_likelihood[tau-1],\
-                             context_likelihood\
-                           ])
+            obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
             
             # q_z = \int_{beta} q(z|beta)q(beta)
             q_z = np.array([self.global_prior, self.global_prior])
