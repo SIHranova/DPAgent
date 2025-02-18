@@ -16,6 +16,7 @@ from perception import NonParamHierarchicalPerception
 #PP
 np.random.seed(324243242)
 np.random.seed(1)
+np.random.seed(41)
 
 # Task setup parameters
 na = 2
@@ -27,21 +28,25 @@ nc = 1
 T = 2
 npi = na**(T-1)
 switch = 10
+gamma_init = 2.9
+rho = 1
 training_protocol = np.tile(np.arange(2).repeat(20),5)
+# training_protocol = np.tile(np.arange(2).repeat(100),1)
 
 TAU = training_protocol.size
 
 # Agent setup Parameters
 h = 1000
+
 approx_pred_pol = True
 approx_pred_rew = True
 
-# kappa = 5
+# gamma_init = 5
 
-for kappa in [3.1,3.1,3.1]:#np.arange(2.8,3.5,0.1):
-
-  kappa = 3
-  rho = 0.96
+# for gamma_init in [gamma_init]:#np.arange(2.,3.2,0.1):
+#   print(f"##################################\n\n\ngamma_init:{gamma_init}\n\n\n##################################")
+for rho in [0.965]*10: #np.arange(0.95,1.005,0.01):
+  print(f"##################################\n\n\nrho:{rho}\n\n\n##################################")
 
   '''           define policies            '''
   # policies = list(product(list(np.arange(na))*(T-1)))
@@ -65,8 +70,8 @@ for kappa in [3.1,3.1,3.1]:#np.arange(2.8,3.5,0.1):
 
   '''           define p(r|s,c)             '''
   counts = np.array([[1,1,1],
-                    [1,1,1],
-                    [1,1,100]])
+                     [1,1,1],
+                     [1,1,100]])
 
   counts_prior_rewards = np.stack( [ counts for i in range(nc) ],axis=-1)
   # counts_prior_rewards[:,:,0] = np.array([[20,2,1],
@@ -95,7 +100,7 @@ for kappa in [3.1,3.1,3.1]:#np.arange(2.8,3.5,0.1):
 
   '''       define prior over contexts p(c) '''
 
-  counts_prior_context = np.array([0]*(nc-1) + [kappa])
+  counts_prior_context = np.array([0]*(nc-1) + [gamma_init])
 
   p = 1
   prior_context = np.array([p] + [1-p]*(nc-1))             # this is different than the normalized counts over context!
@@ -111,11 +116,11 @@ for kappa in [3.1,3.1,3.1]:#np.arange(2.8,3.5,0.1):
 
   '''   define Env reward generation matrix '''
   reward_generation_matrix =  np.array([[[0.9,0.1,0],
-                                        [0.1,0.9,0],
-                                        [0  ,0  ,1]],
+                                         [0.1,0.9,0],
+                                         [0  ,0  ,1]],
                                         [[0.1,0.9,0],
-                                        [0.9,0.1,0],
-                                        [0  ,0  ,1]]]).transpose(1,2,0)
+                                         [0.9,0.1,0],
+                                         [0  ,0  ,1]]]).transpose(1,2,0)
 
   #PP Plot task setup
   if False:
@@ -173,7 +178,7 @@ for kappa in [3.1,3.1,3.1]:#np.arange(2.8,3.5,0.1):
                 env,
                 approx_pred_pol = approx_pred_pol,
                 approx_pred_rew = approx_pred_rew,
-                kappa=kappa,
+                gamma_init=gamma_init,
                 rho = rho
               )
 
@@ -216,14 +221,25 @@ for kappa in [3.1,3.1,3.1]:#np.arange(2.8,3.5,0.1):
     #plt.scatter(np.arange(TAU), post_context[:,0,c], label = f'posterior $c$={c}')
     plt.plot(post_context[:-1,0,c],label=f"context {c+1}")
   plt.legend()
-  plt.title(f"{kappa}")
+  plt.title(f"gamma: {gamma_init}, rho: {rho}")
 
   new_context = (data.inferred_new_context == True).nonzero()
 
   for ind in new_context:
     plt.vlines(ind,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
 
-  plt.savefig(f"figure{kappa}.png", dpi=300)
+
+  fig, axes = plt.subplots(2,data.nc, figsize=(3*data.nc,6))
+
+  for i in range(data.nc):
+      sns.heatmap(data.prior_rewards[-1, 0,:,:,i].round(3), ax=axes[0,i],annot=True)
+      sns.heatmap(data.prior_rewards_counts[-1, 0,:,:,i], ax=axes[1,i],annot=True)
+
+      # print(data.prior_rewards[-1, 0,:,:,i].round(3),'\n')
+  plt.suptitle(f"gamma: {gamma_init}, rho: {rho}")
+
+
+  # plt.savefig(f"figure{gamma_init}.png", dpi=300)
 
 
   # reward entropy plot
@@ -258,17 +274,8 @@ for kappa in [3.1,3.1,3.1]:#np.arange(2.8,3.5,0.1):
   # plt.legend()
 
 
+# print(data.nc)
+#   for i in range(data.nc):
+#       print(data.prior_rewards[-1, 0,:,:,i].round(3),'\n')
 
 
-
-  print(data.nc)
-  for i in range(data.nc):
-      print(data.prior_rewards[-1, 0,:,:,i].round(3),'\n')
-
-
-
-
-
-# PP
-
-# %%
