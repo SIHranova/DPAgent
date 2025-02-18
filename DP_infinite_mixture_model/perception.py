@@ -24,6 +24,7 @@ class NonParamHierarchicalPerception():
                  approx_pred_pol = True,               # use digamma approx when updating policy prior p(pi|c)
                  approx_pred_rew = True,               # use digamma approx when updating reward posterir p(r|s,c)
                  kappa = 0.2,                          # concentration parameter for Dirichlet Process
+                 rho = 1                               # context forgetting rate
                 ):
         
  
@@ -39,7 +40,7 @@ class NonParamHierarchicalPerception():
         self.nc = nc
         self.k = nc - 1                                # number of currently inferred context; should be 1 unless we initialize agent with knowledge of more context 
         self.kappa = kappa                             # kappa is concentration parameter for Dirichlet process
-        
+        self.rho = rho
         #inherited from other classes
         self.environment = env
         self.TAU = env.TAU
@@ -226,6 +227,7 @@ class NonParamHierarchicalPerception():
     def update_beliefs_context(self,t,tau, likelihood_policies, posterior_policies):
         
 
+
         prior_context = self.prior_context[tau,0]
 
         if t>0:
@@ -239,13 +241,19 @@ class NonParamHierarchicalPerception():
             policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
             policy_surprise  =  (posterior_policies * (scp.digamma(alphas) - scp.digamma(alphas.sum(axis=0)))).sum(axis=0)
 
+            if False and tau <30:
+                print(f"prior_context   :{self.ln(prior_context).round(3)}")
+                print(f"outcome_surprise:{outcome_surprise.round(3)}")
+                print(f"policy_entropy  :{policy_entropy.round(3)}")
+                print(f"policy_surprise :{policy_surprise.round(3)}")
             posterior_context = outcome_surprise + policy_entropy + policy_surprise + self.ln(prior_context)
 
         else:
             posterior_context = self.ln(prior_context)
 
         posterior_context = np.nan_to_num(scp.softmax(posterior_context))
-        self.posterior_context[tau] = posterior_context[None,...] 
+        self.posterior_context[tau] = posterior_context[None,...]
+        
         return posterior_context
     
 
@@ -323,7 +331,9 @@ class NonParamHierarchicalPerception():
             gamma_prime[-2:] = np.array([1,self.kappa])
             self.nc += 1
 
-        gamma_prime[:self.k] += posterior_context
+        # self.rho*self.global_prior_counts[tau] + counts + (1-self.rho)*alpha_init
+        # gamma_prime[:self.k] += posterior_context
+        gamma_prime[:self.k] = self.rho*gamma_prime[:self.k] + posterior_context + (1-self.rho)*np.ones(self.k)
         self.prior_context_counts[tau+1] = gamma_prime[None,:]
 
         posterior_predictive_context = self.digamma_approximation(gamma_prime)

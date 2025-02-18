@@ -32,14 +32,14 @@ env.plot_data(data)
 
 
 ######THESE WORK WELL WHEN same z is used for inference!
-# gammas = np.arange(0.001, 0.15,0.005)
-# alphas = np.arange(0.001, 0.014,0.001)
-# kappas = np.arange(0,0.02,0.002)
+gammas = np.arange(0.001, 0.15,0.005)
+alphas = np.arange(0.001, 0.014,0.001)
+kappas = np.arange(0,0.02,0.002)
 
 ######these work well when differnt z is used for inference!
-gammas = np.arange(0.001, 0.1,0.001)
-alphas = np.arange(0.004, 0.006, 0.0001)
-kappas = np.arange(0.02,0.035,0.005)
+# gammas = np.arange(0.001, 0.1,0.001)
+# alphas = np.arange(0.004, 0.006, 0.0001)
+# kappas = np.arange(0.02,0.035,0.005)
 
 # log for simulation data
 simulation_data = np.zeros([int(gammas.size*alphas.size*kappas.size),5])
@@ -49,8 +49,8 @@ i = 0
 distance_best_fit = 10000
 
 print(f"total number of simulations: {gammas.size*alphas.size*kappas.size}")
-# for gamma, alpha, kappa in product(gammas,alphas,kappas):
-for gamma, alpha, kappa in ([[0.121, 0.003, 0.01]]):
+for gamma, alpha, kappa in product(gammas,alphas,kappas):
+# for gamma, alpha, kappa in ([[0.121, 0.003, 0.01]]):
 
     # run inference
     agent = HDP_speaker_discretization()
@@ -96,15 +96,16 @@ for gamma, alpha, kappa in ([[0.121, 0.003, 0.01]]):
             total_distance_tm = (Q_tm*np.log(Q_tm/P_tm)).sum(axis=0).mean()
 
             title = f"{total_distance.round(3)}_{i}_" 
-            plt.figure()
-            plt.plot(Q_rew)
-            plt.ylim(0,0.6)
-            plt.savefig(title+"_0.png")
-            plt.close()
-            plot_heatmap(Q_tm.round(2), file_title = title + "_2", title=f"trans matrix - gamma: {round(gamma,3)}, alpha: {round(alpha,3)}, kappa: {round(kappa,3)}")
+            # plt.figure()
+            # plt.plot(Q_rew,"-o")
+            # plt.ylim(0,0.65)
+            # plt.savefig(title+"_0.png")
+            # plt.close()
+            # plot_heatmap(Q_tm.round(2), file_title = title + "_2", title=f"trans matrix - gamma: {round(gamma,3)}, alpha: {round(alpha,3)}, kappa: {round(kappa,3)}")
             simulation_data[i] = np.array([total_distance, gamma,alpha,kappa, total_distance_tm])
     else:
-        print(f"{gamma},{alpha}, {kappa},{agent.K}")
+        # print(f"{gamma},{alpha}, {kappa},{agent.K}")
+        pass
 
     if i%100==0:
         print(i)

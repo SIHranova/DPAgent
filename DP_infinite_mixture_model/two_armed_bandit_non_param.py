@@ -12,9 +12,10 @@ from agent import NonParamAgent
 from world import World
 from perception import NonParamHierarchicalPerception
 
-
+# plt.rcParams["figure.dpi"] = 300
 #PP
 np.random.seed(324243242)
+np.random.seed(1)
 
 # Task setup parameters
 na = 2
@@ -37,10 +38,10 @@ approx_pred_rew = True
 
 # kappa = 5
 
-for kappa in np.arange(2.8,3.5,0.1):
+for kappa in [3.1,3.1,3.1]:#np.arange(2.8,3.5,0.1):
 
-  # kappa = 3.2
-
+  kappa = 3
+  rho = 0.96
 
   '''           define policies            '''
   # policies = list(product(list(np.arange(na))*(T-1)))
@@ -172,7 +173,8 @@ for kappa in np.arange(2.8,3.5,0.1):
                 env,
                 approx_pred_pol = approx_pred_pol,
                 approx_pred_rew = approx_pred_rew,
-                kappa=kappa
+                kappa=kappa,
+                rho = rho
               )
 
   agent = NonParamAgent(
@@ -204,20 +206,24 @@ for kappa in np.arange(2.8,3.5,0.1):
   plt.style.use('default')
 
   ### context plot
-  plt.figure()
+
+  
+  plt.figure(figsize=(5,3))
+  # plt.grid()
   # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
   # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
   for c in range(data.nc):
     #plt.scatter(np.arange(TAU), post_context[:,0,c], label = f'posterior $c$={c}')
-    plt.plot(post_context[:,0,c])
+    plt.plot(post_context[:-1,0,c],label=f"context {c+1}")
   plt.legend()
-  plt.title(f"$\kappa=${kappa}")
+  plt.title(f"{kappa}")
 
   new_context = (data.inferred_new_context == True).nonzero()
 
   for ind in new_context:
     plt.vlines(ind,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
 
+  plt.savefig(f"figure{kappa}.png", dpi=300)
 
 
   # reward entropy plot

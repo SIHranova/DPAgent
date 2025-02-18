@@ -48,17 +48,17 @@ rhos = np.array([0.995])
 # alphas = np.array([2])
 # kappas = np.array([0.5])
 
-gammas = np.array([0.2])
-alphas = np.array([1.6])
-kappas = np.array([0.1])
+# gammas = np.array([0.2])
+# alphas = np.array([1.6])
+# kappas = np.array([0.1])
 
 sim_params = product(alphas, gammas, kappas,rhos)
-reps = 10
+reps = 1
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rhos.size*reps,7])
 
 debug = [False for rep in range(reps)]
-debug[4] = False
+# debug[4] = False
 # debug = [False, False, False, False,False]
 
 print(f"-----------------------------------")
@@ -208,7 +208,7 @@ for alpha, gamma, kappa, rho in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=debug[rep],
+                    debug=False, #debug[rep],
                     rho=rho)
 
 

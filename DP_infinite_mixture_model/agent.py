@@ -71,7 +71,7 @@ class NonParamAgent():
 
                 c =  np.argmax(posterior_context) + 1 #self.sample_context(t,tau, posterior_context)
                 posterior_context = np.eye(self.perc.nc)[c-1]
-
+                # self.perc.posterior_context[tau,:] = posterior_context[None,:]
                 if c > self.perc.k:
                     print( f"inferred new context at {tau}")
                     self.perc.open_new_context()
@@ -83,6 +83,51 @@ class NonParamAgent():
             self.perc.update_beliefs_prior_policies(t,tau, posterior_context)
             self.perc.update_beliefs_prior_rewards(tau)
             self.perc.update_beliefs_prior_context(t,tau,posterior_context)
+
+            a = 0
+
+
+        if True and tau <30:
+            print(f"--------------------\ntau,t: {tau,t}")
+            print(f"action: {action}, observation: {observation}, reward: {reward}")
+
+            print(f"\nq(r|pi,c); policy likelihood:")
+            print(likelihood_policies.round(4))
+
+            print(f"\nq(pi|c) policy posterior:")
+            print(posterior_policies.round(4))
+            
+            
+
+            if t == self.T-1:
+                if tau > 0:
+                    print(f"\nq(c):")
+                    print(posterior_context)
+                
+                if self.perc.inferred_new_context[tau]:
+                    print("opened new context!")
+
+                print(f"\nprior context counts")
+                print(self.perc.prior_context_counts[tau+1,0])
+
+                print(f"\nprior context counts")
+                print(self.perc.prior_context[tau+1,0])
+
+                print(f"\nrewards counts:")
+                print(f"obs, reward: {observation, reward}")
+                for k in range(self.perc.k+1):
+                    print(f"\n{self.perc.prior_rewards_counts[tau+1,t][:,:,k]}")
+                
+                print(f"\nprior_rewards")
+                for k in range(self.perc.k+1):
+                    print(self.perc.prior_rewards[tau+1,t][:,:,k].round(3))
+
+
+                print(f"\npolicy counts")
+                print(f"chosen policy:{action}")
+                print(self.perc.prior_policies_counts[tau+1,t])
+                print(self.perc.prior_policies[tau+1,t].round(4))
+                
 
 
     def sample_context(self,t,tau,posterior_context):
@@ -185,7 +230,6 @@ class Agent():
         if (t == self.T-1 and tau < self.TAU-1):
             self.perc.update_beliefs_prior_policies(t, tau, posterior_context)
 
-        
     def sample_action(self,t,tau):
 
         post_policies = self.posterior_policies[tau,t]

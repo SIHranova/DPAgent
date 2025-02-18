@@ -104,7 +104,7 @@ reward_generation_matrix =  np.array([[[0.9,0.1,0],
 #%% Plot task setup
 
 '''Plot state transition matrix'''
-if False:
+if True:
   fig,axes = plt.subplots(1,2,figsize=(10,4))
 
   for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
