@@ -33,44 +33,39 @@ TAU = training_protocol.size
 
 # Agent setup Parameters
 h = 1000
-approx_pred_pol = True
+approx_pred_pol = True  # refers to whether digamma is used or note
 approx_pred_rew = True
 
 
-gammas = np.arange(0.1,0.4,0.05)
-alphas = np.arange(1,1.6,0.05) #[1.9]#[2.1]
-kappas = np.arange(0.05,0.1,0.01)
+# gammas = np.arange(0.1,0.4,0.05)
+# alphas = np.arange(1,1.6,0.05) #[1.9]#[2.1]
+# kappas = np.arange(0.05,0.1,0.01)
 # rhos = np.arange(0.9,1, 0.01)
-rhos = np.array([0.995])
+gammas = np.array([0.2])
+alphas = np.array([1.6])
+kappas = np.array([0.1])
+rhos = np.array([1])      # rho still broken!!!!!!!!!
 
-# alpha = 3
-# gammas = np.array([1.7])
-# alphas = np.array([2])
-# kappas = np.array([0.5])
-
-# gammas = np.array([0.2])
-# alphas = np.array([1.6])
-# kappas = np.array([0.1])
 
 sim_params = product(alphas, gammas, kappas,rhos)
-reps = 1
+reps = 1   # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rhos.size*reps,7])
 
-debug = [False for rep in range(reps)]
-# debug[4] = False
-# debug = [False, False, False, False,False]
+
 
 print(f"-----------------------------------")
 print(f"{alphas.size*kappas.size*gammas.size*rhos.size*reps} simulations to run")
 i = -1
 
 #%%
+###### Run simulations
 for alpha, gamma, kappa, rho in sim_params:
+    
     for rep in range(reps):
 
-        # print("#######################################################")
-
+        ####### Setup simulation
+        
         i+=1
 
         '''           define policies            '''
@@ -127,7 +122,7 @@ for alpha, gamma, kappa, rho in sim_params:
         # counts_prior_context = np.array([0]*(nc-1) + [kappa])
 
         # p = 1
-        # prior_context = np.array([p] + [1-p]*(nc-1))             # this is different than the normalized counts over context!
+        # prior_context = np.array([p] + [1-p]*(nc-1))            
 
         # '''define context transition matrix p(c_t|c_t-1))'''
 
@@ -148,7 +143,7 @@ for alpha, gamma, kappa, rho in sim_params:
                                                [0  , 0  , 1]]]).transpose(1,2,0)
 
 
-        #PP Plot task setup
+        ######## Plot task setup
         if False:
             '''Plot state transition matrix'''
             fig,axes = plt.subplots(1,2,figsize=(6,3))
@@ -176,8 +171,7 @@ for alpha, gamma, kappa, rho in sim_params:
                 ax.set_yticklabels(['$r_1$', '$r_2$', '$r_3$'])
                 ax.set_title(title)
 
-        #PP Run Simulations
-
+        ##### Setup Classes
         env = MultiArmedBandit(state_transition_matrix,
                             reward_generation_matrix, 
                             TAU=TAU,
@@ -208,21 +202,24 @@ for alpha, gamma, kappa, rho in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=False, #debug[rep],
+                    debug=False, #True
                     rho=rho)
 
 
 
         world = World(agent, env)
-
         world.simulate_experiment()
 
+
+
+
+        ############### 
         # if agent.K == 2:
         if agent.K > 1:            
             ###
 
-            Q_rew = agent.prior_rewards[-1,:,:,:agent.K]  + 1e-10      # inferred speaker distributions over words
-            P_rew = reward_generation_matrix              + 1e-10      # true speaker distributions over words
+            Q_rew = agent.prior_rewards[-1,:,:,:agent.K]  + 1e-10      # inferred reward distribution given state and context
+            P_rew = reward_generation_matrix              + 1e-10      # true reward distribution
 
             labels = np.zeros(2,dtype=int)                             # which learned distribution corresponds to which true distribution 
             true_divergence = np.zeros(2)                              # distance between inferred and true distribution once labels allocated
@@ -230,8 +227,8 @@ for alpha, gamma, kappa, rho in sim_params:
 
             # transition matrix with last row removed
             # tm = (agent.transition_matrix[:agent.K,:agent.K]/agent.transition_matrix[:agent.K,:agent.K].sum(axis=0)[None,:])
-
-            # label allocation
+            
+            # Label allocation problem solution which is probably broken, ignore for now :D 
             for distribution in range(2):
                 
                 for candidate in range(agent.K):
@@ -352,9 +349,8 @@ for alpha, gamma, kappa, rho in sim_params:
             # print(agent.K)
             # for k in range(agent.K):
             #     print(data.prior_rewards[-1,:,:,k].round(3),'\n')
-
         else:
-            true_divergence = np.array([2,2])
+            true_divergence = np.array([3,3]) # just set to somethin high
         sim_data[i] = np.array([rep, alpha, gamma, kappa, rho, true_divergence.mean().round(5), agent.K])
 
         if i%500 == 0:
@@ -363,79 +359,79 @@ for alpha, gamma, kappa, rho in sim_params:
 # plt.show()
 #%%
         
-# df.to_csv("regularize_beta_sim_params.csv")
-df = pd.DataFrame(data = sim_data, columns = ["rep","alpha","gamma","kappa","rho","distribution_distance","K"])
 
-#%%
+#%% Analyse all sims
 
-df = df.dropna()
-# df = df.loc[~(df==0).all(axis=1)]
-
-
-for rep in range(1):
-    # for kappa in kappas:
-    # Create a 3D scatter plot
-    rep_df = df[df["rep"] == rep]
-    # rep_df = df[df["kappa"] == kappa]
-
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    # Scatter plot with color mapping for performance
-    scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], rep_df['kappa'], c=rep_df['distribution_distance'], cmap='viridis', s=40)
-    # Add labels
-    ax.set_xlabel('alpha')
-    ax.set_ylabel('gamma')
-    ax.set_zlabel('kappa')
-    ax.set_title(f"kappa: {kappa}")
-    # Add a colorbar
-    cbar = fig.colorbar(scatter)
-    cbar.set_label('Average DKL[Q_reward||P_reward]')
-    plt.show()
+# # df.to_csv("regularize_beta_sim_params.csv")
+# df = pd.DataFrame(data = sim_data, columns = ["rep","alpha","gamma","kappa","rho","distribution_distance","K"])
+# df = df.dropna()
+# # df = df.loc[~(df==0).all(axis=1)]
 
 
+# for rep in range(1):
+#     # for kappa in kappas:
+#     # Create a 3D scatter plot
+#     rep_df = df[df["rep"] == rep]
+#     # rep_df = df[df["kappa"] == kappa]
 
-for rep in range(1):
-    # for kappa in kappas:
-    # Create a 3D scatter plot
-    rep_df = df[df["rep"] == rep]
-    # rep_df = df[df["kappa"] == kappa]
+#     fig = plt.figure(figsize=(10, 8))
+#     ax = fig.add_subplot(111, projection='3d')
+#     # Scatter plot with color mapping for performance
+#     scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], rep_df['kappa'], c=rep_df['distribution_distance'], cmap='viridis', s=40)
+#     # Add labels
+#     ax.set_xlabel('alpha')
+#     ax.set_ylabel('gamma')
+#     ax.set_zlabel('kappa')
+#     ax.set_title(f"kappa: {kappa}")
+#     # Add a colorbar
+#     cbar = fig.colorbar(scatter)
+#     cbar.set_label('Average DKL[Q_reward||P_reward]')
+#     plt.show()
 
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    # Scatter plot with color mapping for performance
-    scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], rep_df['kappa'], c=rep_df['K'], cmap='viridis', s=40)
-    # Add labels
-    ax.set_xlabel('alpha')
-    ax.set_ylabel('gamma')
-    ax.set_zlabel('kappa')
-    ax.set_title(f"kappa: {kappa}")
-    # Add a colorbar
-    cbar = fig.colorbar(scatter)
-    cbar.set_label('Average DKL[Q_reward||P_reward]')
-    plt.show()
-#%%
 
-kappa = kappas[0]
-# Create a 3D scatter plot
 
-# Scatter plot with color mapping for performance
-for kappa in kappas:
-    rep_df = df[df["rep"] == 0]
-    rep_df = rep_df[rep_df["kappa"] == kappa]
-    # rep_df = rep_df[rep_df["gamma"] == gamma]
+# for rep in range(1):
+#     # for kappa in kappas:
+#     # Create a 3D scatter plot
+#     rep_df = df[df["rep"] == rep]
+#     # rep_df = df[df["kappa"] == kappa]
 
-    fig = plt.figure(figsize=(5, 5))
-    ax = fig.add_subplot(111)
-    scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], c=rep_df['distribution_distance'], cmap='viridis', s=40)
-    # Add labels
-    ax.set_xlabel('alpha')
-    ax.set_ylabel('gamma')    # Add a colorbar
-    cbar = fig.colorbar(scatter)
-    cbar.set_label('Average DKL[Q_reward||P_reward]')
-    ax.set_title(f"kappa: {kappa}")
-plt.show()
-
+#     fig = plt.figure(figsize=(10, 8))
+#     ax = fig.add_subplot(111, projection='3d')
+#     # Scatter plot with color mapping for performance
+#     scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], rep_df['kappa'], c=rep_df['K'], cmap='viridis', s=40)
+#     # Add labels
+#     ax.set_xlabel('alpha')
+#     ax.set_ylabel('gamma')
+#     ax.set_zlabel('kappa')
+#     ax.set_title(f"kappa: {kappa}")
+#     # Add a colorbar
+#     cbar = fig.colorbar(scatter)
+#     cbar.set_label('Average DKL[Q_reward||P_reward]')
+#     plt.show()
 # #%%
+
+# kappa = kappas[0]
+# # Create a 3D scatter plot
+
+# # Scatter plot with color mapping for performance
+# for kappa in kappas:
+#     rep_df = df[df["rep"] == 0]
+#     rep_df = rep_df[rep_df["kappa"] == kappa]
+#     # rep_df = rep_df[rep_df["gamma"] == gamma]
+
+#     fig = plt.figure(figsize=(5, 5))
+#     ax = fig.add_subplot(111)
+#     scatter = ax.scatter(rep_df['alpha'], rep_df['gamma'], c=rep_df['distribution_distance'], cmap='viridis', s=40)
+#     # Add labels
+#     ax.set_xlabel('alpha')
+#     ax.set_ylabel('gamma')    # Add a colorbar
+#     cbar = fig.colorbar(scatter)
+#     cbar.set_label('Average DKL[Q_reward||P_reward]')
+#     ax.set_title(f"kappa: {kappa}")
+# plt.show()
+
+# # #%%
 
 
 

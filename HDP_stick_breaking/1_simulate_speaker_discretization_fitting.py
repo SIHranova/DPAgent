@@ -8,7 +8,7 @@ from itertools import product
 import pandas as pd
 from agent import HDP_speaker_discretization
 from misc import plot_heatmap
-
+ 
 
 #%% Create environment and data
 env = SpeakerDiscretizationEnvironment()
@@ -32,9 +32,9 @@ env.plot_data(data)
 
 
 ######THESE WORK WELL WHEN same z is used for inference!
-gammas = np.arange(0.001, 0.15,0.005)
-alphas = np.arange(0.001, 0.014,0.001)
-kappas = np.arange(0,0.02,0.002)
+gammas = np.array([0.05])  # np.arange(0.001, 0.15,0.005)
+alphas = np.array([0.1])   # np.arange(0.001, 0.014,0.001)
+kappas = np.array([0.015]) # np.arange(0,0.02,0.002)
 
 ######these work well when differnt z is used for inference!
 # gammas = np.arange(0.001, 0.1,0.001)
@@ -96,12 +96,14 @@ for gamma, alpha, kappa in product(gammas,alphas,kappas):
             total_distance_tm = (Q_tm*np.log(Q_tm/P_tm)).sum(axis=0).mean()
 
             title = f"{total_distance.round(3)}_{i}_" 
-            # plt.figure()
-            # plt.plot(Q_rew,"-o")
-            # plt.ylim(0,0.65)
-            # plt.savefig(title+"_0.png")
+            plt.figure()
+            plt.plot(Q_rew,"-o")
+            plt.ylim(0,0.65)
+            plt.show()
+            plt.savefig(title+"_0.png")
             # plt.close()
-            # plot_heatmap(Q_tm.round(2), file_title = title + "_2", title=f"trans matrix - gamma: {round(gamma,3)}, alpha: {round(alpha,3)}, kappa: {round(kappa,3)}")
+            
+            plot_heatmap(Q_tm.round(2), file_title = title + "_2", title=f"trans matrix - gamma: {round(gamma,3)}, alpha: {round(alpha,3)}, kappa: {round(kappa,3)}")
             simulation_data[i] = np.array([total_distance, gamma,alpha,kappa, total_distance_tm])
     else:
         # print(f"{gamma},{alpha}, {kappa},{agent.K}")
@@ -112,45 +114,49 @@ for gamma, alpha, kappa in product(gammas,alphas,kappas):
 
     i += 1
     
+#%%
+
+
+
 
 #%% Plot parameters and fit quality
 
-df = pd.DataFrame(data = simulation_data, columns = ["distribution_distance","gamma","alpha","kappa","tm_distance"])
-df = df.dropna()
-# df = df[df["distribution_distance"]<0.5]
-# df.drop(columns=["i","matrix_distance"])
+# df = pd.DataFrame(data = simulation_data, columns = ["distribution_distance","gamma","alpha","kappa","tm_distance"])
+# df = df.dropna()
+# # df = df[df["distribution_distance"]<0.5]
+# # df.drop(columns=["i","matrix_distance"])
 
 
-# Create a 3D scatter plot
-fig = plt.figure(figsize=(10, 8))
-ax = fig.add_subplot(111, projection='3d')
-# Scatter plot with color mapping for performance
-scatter = ax.scatter(df['alpha'], df['gamma'], df['kappa'], c=df['distribution_distance'], cmap='viridis', s=40)
-# Add labels
-ax.set_xlabel('alpha')
-ax.set_ylabel('gamma')
-ax.set_zlabel('kappa')
-# Add a colorbar
-cbar = fig.colorbar(scatter)
-cbar.set_label('Average DKL[Q_reward||P_reward]')
-plt.show()
+# # Create a 3D scatter plot
+# fig = plt.figure(figsize=(10, 8))
+# ax = fig.add_subplot(111, projection='3d')
+# # Scatter plot with color mapping for performance
+# scatter = ax.scatter(df['alpha'], df['gamma'], df['kappa'], c=df['distribution_distance'], cmap='viridis', s=40)
+# # Add labels
+# ax.set_xlabel('alpha')
+# ax.set_ylabel('gamma')
+# ax.set_zlabel('kappa')
+# # Add a colorbar
+# cbar = fig.colorbar(scatter)
+# cbar.set_label('Average DKL[Q_reward||P_reward]')
+# plt.show()
 
-# Create a 3D scatter plot
-fig = plt.figure(figsize=(10, 8))
-ax = fig.add_subplot(111, projection='3d')
-# Scatter plot with color mapping for performance
-scatter = ax.scatter(df['alpha'], df['gamma'], df['kappa'], c=df['tm_distance'], cmap='viridis', s=40)
-# Add labels
-ax.set_xlabel('alpha')
-ax.set_ylabel('gamma')
-ax.set_zlabel('kappa')
-# Add a colorbar
-cbar = fig.colorbar(scatter)
-cbar.set_label('Average DKL[Q_tm||P_tm]')
-plt.show()
+# # Create a 3D scatter plot
+# fig = plt.figure(figsize=(10, 8))
+# ax = fig.add_subplot(111, projection='3d')
+# # Scatter plot with color mapping for performance
+# scatter = ax.scatter(df['alpha'], df['gamma'], df['kappa'], c=df['tm_distance'], cmap='viridis', s=40)
+# # Add labels
+# ax.set_xlabel('alpha')
+# ax.set_ylabel('gamma')
+# ax.set_zlabel('kappa')
+# # Add a colorbar
+# cbar = fig.colorbar(scatter)
+# cbar.set_label('Average DKL[Q_tm||P_tm]')
+# plt.show()
 
 
-print(df[df["distribution_distance"] == df["distribution_distance"].min()])
-print(df[df["tm_distance"] == df["tm_distance"].min()])
+# print(df[df["distribution_distance"] == df["distribution_distance"].min()])
+# print(df[df["tm_distance"] == df["tm_distance"].min()])
 
 

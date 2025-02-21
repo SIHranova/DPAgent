@@ -78,7 +78,7 @@ class HDP():
         self.prior_context[0] = 1                                                         # context prior p(c1)
 
         self.beta_prime = np.zeros(self.max_context)                                      # Expectation of stick break beta'_k = gamma_k1/(gamma_k1+gamma_k2) 
-        self.global_prior_counts = np.zeros([self.TAU+1, self.max_context,2])               # parameters gamma_1, gamma_2 of beta_k: p(beta'_k|gamma_k1, gamma_k2)
+        self.global_prior_counts = np.zeros([self.TAU+1, self.max_context,2])             # parameters gamma_1, gamma_2 of beta_k: p(beta'_k|gamma_k1, gamma_k2)
         self.global_prior = np.zeros(self.max_context)                                    # p(z|gamma_1, gamma_2)  = int_b p(z|b)p(b|gamma_1, gamma_2)
         self.global_prior[0] = 1
 
@@ -107,15 +107,10 @@ class HDP():
             self.prior_policies[0] = self.prior_policies_counts[0] / self.prior_policies_counts[0].sum(axis=0)
 
         self.posterior_states = np.zeros([self.TAU,self.T, self.ns, self.T, self.npi, self.max_context])
-
         self.observations = np.zeros([self.TAU,self.T], dtype=int)              # array storing observations
-
         self.context = np.zeros(self.TAU, dtype=int)                            # array storing inferred context
-
         self.posterior_context = np.zeros([self.TAU, self.T, self.max_context]) # array storing posterior over contextss
-
         self.actions = np.zeros([self.TAU, self.T])
-        
         self.opened_new_context = np.zeros(self.TAU,dtype=bool)
 
 
@@ -220,11 +215,10 @@ class HDP():
     def update_beliefs_policies(self,t,tau):
         
         likelihood = np.zeros([self.npi, self.max_context])
-        likelihood[:,:self.K+1] = self.fwd_norms.prod(axis=0)                      # exp(log(norms)) = -F(pi,c)
-        posterior_policies  = np.power(likelihood,self.dec_temp)*self.prior_policies[tau]     # exp(digamma(alpha_ij) - digamma(alpha_j)) when you integrate theta out
+        likelihood[:,:self.K+1] = self.fwd_norms.prod(axis=0)
+        posterior_policies  = np.power(likelihood,self.dec_temp)*self.prior_policies[tau]
         posterior_policies /= posterior_policies.sum(axis=0)
         posterior_policies = np.nan_to_num(posterior_policies)
-        # store in global log
         self.likelihood_policies[tau,t] = np.nan_to_num(likelihood/likelihood.sum(axis=0))
         self.posterior_policies[tau,t] = posterior_policies
 
@@ -293,27 +287,24 @@ class HDP():
 
 
     def update_beliefs(self, t, tau, state, reward, action, observation):
-
-        # print(f"---------\ntau={tau}")
         
+        ########## 1. Infer state q(s,r|\pi,c), policy q(\pi|c) and context q(c) posteriors (E-Step)?
         self.observations[tau,t] = observation
 
         q_s = self.update_beliefs_states(t, tau, reward, action, observation)
-
         likelihood_policies, posterior_policies = self.update_beliefs_policies(t,tau)
-
         q_c = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies)
 
 
         if t == self.T-1:
             
+            ########## 2. sample context and create new stick breaks and atoms if necessary 
             current_context = np.argmax(q_c)
-
             self.context[tau] = current_context
 
-            if current_context + 1 > self.K:         # if inferred presence of new context
+            if current_context + 1 > self.K:
+                
                 # print(f"opened new context at tau: {tau}")
-
                 self.K += 1
                 self.opened_new_context[tau] = True
 
@@ -337,32 +328,31 @@ class HDP():
                 
                 self.transition_matrix_counts = self.transition_matrix_counts + counts
 
-
-            # update posterior over global context  q(beta'|gamma)
-            counts = np.zeros([self.max_context,2])
-            alpha_init = np.zeros([self.max_context,2])
-            alpha_init[:self.K,:] = np.array([[1,self.alpha]])
-
-            if tau > 10:
-                counts[current_context,0] += 1
-                counts[:current_context,1] += 1
-            # print(self.global_prior_counts[tau].T)              
-            self.global_prior_counts[tau+1] = self.rho*self.global_prior_counts[tau] + counts + (1-self.rho)*alpha_init
-            self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1], approx=False)
-            # print(self.global_prior_counts[tau+1].T)
-
-            # update lambda of q(phi|lambda)
-            self.prior_rewards_counts[tau+1] = self.prior_rewards_counts[tau].copy()
+            ########## 3. update parameter estimates (M-step?)
             
             chosen_pol = np.argmax(posterior_policies[:,current_context])
             states = np.argmax(q_s[:,:,chosen_pol, current_context],axis=0)
             
+            # 3.1 update global context prior params q(beta'|gamma) and construct new q(z_t)
+            counts = np.zeros([self.max_context,2])
+            gamma_init = np.zeros([self.max_context,2])
+            gamma_init[:self.K,:] = np.array([[1,self.alpha]])
+
+            counts[current_context,0] += 1
+            counts[:current_context,1] += 1
+            
+            self.global_prior_counts[tau+1] = self.rho*self.global_prior_counts[tau] + counts + (1-self.rho)*gamma_init
+            self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1], approx=False)
+
+
+            # 3.2 update reward probability params phi q(phi|lambda)
+            self.prior_rewards_counts[tau+1] = self.prior_rewards_counts[tau].copy()
             for obs, state in zip(self.observations[tau,1:], states[1:]):
                 self.prior_rewards_counts[tau+1, reward, state, current_context] += 1
-
             self.prior_rewards[tau+1] = np.nan_to_num(self.prior_rewards_counts[tau+1]/self.prior_rewards_counts[tau+1].sum(axis=0)[None,:,:])
 
-            # update eta of q(c_t|c_t-1, eta)
+
+            # 3.3 update context transition probability params q(eta'|alpha) and construct p'(c_t, c_t-1)
             if tau > 0:
                 # print(f"tau: {tau}, contexts: {self.context[tau-1]},{self.context[tau]}")
                 counts = np.zeros([self.max_context, self.max_context, 2])
@@ -373,15 +363,14 @@ class HDP():
 
             self.transition_matrix = self.construct_G_j(approx=False)
             
-            #update theta p(\pi_t|c_t,\theta)
+            # 3.4 update context specific policy prior params q(\theta|epsilon)
+
             counts = self.prior_policies_counts[tau,:,:].copy()
             counts[chosen_pol,current_context] += 1
             self.prior_policies_counts[tau+1] = counts
             self.prior_policies[tau+1] = np.nan_to_num(counts / counts.sum(axis=0))
 
-            
-            # self.posterior_context[tau] = np.eye(self.max_context)[current_context]
-
+        ######### Print inferred beliefs
         if self.debug:
             if tau < 40:
                 if self.opened_new_context[tau]:
@@ -514,7 +503,6 @@ class HDP():
         
         return chosen_action
 
-
 class HDP_speaker_discretization():
     
     def __init__(self):
@@ -532,9 +520,9 @@ class HDP_speaker_discretization():
         self.kappa = kappa                                              # self transition bias
         self.rho = kappa/(alpha+kappa)
         self.lambda_H = lambda_H                                        # parameters of base Measure H = Dir(lambda)
-        self.observations  = np.zeros([self.TAU,self.W],dtype=int)           # array storing observations
-        self.context = np.zeros(TAU, dtype=int)                         # array storing inferred context
-        self.posterior_context = np.zeros([self.TAU, self.max_context]) # array storing posterior over contextss
+        self.observations  = np.zeros([self.TAU,self.W], dtype=int)           # array storing observations
+        self.context = np.zeros(TAU//obs_batch_size, dtype=int)                         # array storing inferred context
+        self.posterior_context = np.zeros([self.TAU//obs_batch_size, self.max_context]) # array storing posterior over contextss
         self.debug=debug
 
 
@@ -556,7 +544,7 @@ class HDP_speaker_discretization():
         self.generative_model_counts[:,0] = self.lambda_H                                # int_phi Cat(x|phi)Dir(phi|lambda_H) = Cat(x|lambda_H)  
         self.generative_model_obs = np.nan_to_num(self.generative_model_counts/self.generative_model_counts.sum(axis=0))
 
-        self.opened_new_context = np.zeros(self.TAU)
+        self.opened_new_context = np.zeros(self.TAU//self.W)
 
     def update_beliefs_context(self,tau):
 
