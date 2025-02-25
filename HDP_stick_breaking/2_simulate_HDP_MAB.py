@@ -14,7 +14,7 @@ from agent import HDP
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
-np.random.seed(324243242)
+np.random.seed(6)
 
 # Task setup parameters
 na = 2
@@ -43,12 +43,12 @@ approx_pred_rew = True
 # rhos = np.arange(0.9,1, 0.01)
 gammas = np.array([0.2])
 alphas = np.array([1.6])
-kappas = np.array([0.1])
+kappas = np.array([1])
 rhos = np.array([1])      # rho still broken!!!!!!!!!
 
 
 sim_params = product(alphas, gammas, kappas,rhos)
-reps = 1   # how many times to run simulation with same params
+reps = 10  # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rhos.size*reps,7])
 
@@ -134,13 +134,15 @@ for alpha, gamma, kappa, rho in sim_params:
         #     context_transition_matrix = np.eye(nc)*(1-2*q) + q
 
         '''   define Env reward generation matrix '''
-        reward_generation_matrix =  np.array([[[0.9, 0.1, 0], 
-                                               [0.1, 0.9, 0], 
-                                               [0  , 0  , 1]], 
+        p = 0.9
+        q = 1 - p
+        reward_generation_matrix =  np.array([[[p, q, 0], 
+                                               [q, p, 0], 
+                                               [0, 0, 1]], 
                                             
-                                              [[0.1, 0.9, 0], 
-                                               [0.9, 0.1, 0], 
-                                               [0  , 0  , 1]]]).transpose(1,2,0)
+                                              [[q, p, 0], 
+                                               [p, q, 0], 
+                                               [0, 0, 1]]]).transpose(1,2,0)
 
 
         ######## Plot task setup
@@ -202,7 +204,7 @@ for alpha, gamma, kappa, rho in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=False, #True
+                    debug=True, #True
                     rho=rho)
 
 
@@ -215,7 +217,7 @@ for alpha, gamma, kappa, rho in sim_params:
 
         ############### 
         # if agent.K == 2:
-        if agent.K > 1:            
+        if agent.K >= 1:            
             ###
 
             Q_rew = agent.prior_rewards[-1,:,:,:agent.K]  + 1e-10      # inferred reward distribution given state and context
@@ -264,14 +266,28 @@ for alpha, gamma, kappa, rho in sim_params:
             # plt.style.use('default')
 
             ## CONTEXT PLOT
+            n_trials = training_protocol.size
+            unexpected_event = np.zeros(n_trials)
+            
+            for trial, trial_type in enumerate(training_protocol):
+                if trial_type == 0:
+                    unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
+                else:
+                    unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
+
+            inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
+            y_val = agent.posterior_context[np.arange(n_trials),1,inf_context]*unexpected_event
+            y_val[y_val == 0] = None
             fig, ax = plt.subplots(1, figsize=(5,3))
+
             ax.set_ylim((0,1.05))
             plt.grid(axis="x")
             ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
             # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
+            ax.scatter(np.arange(n_trials), y_val, marker="x", color="k")
             for c in range(data.K):
-                ax.plot(post_context[:,0,c],label=f"context {c}")
+                ax.plot(post_context[:,1,c],label=f"context {c}")
                 ax.legend()
                 ax.set_title(fr"$\alpha=${alpha}")
 

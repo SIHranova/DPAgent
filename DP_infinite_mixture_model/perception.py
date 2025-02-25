@@ -92,6 +92,7 @@ class HibachiGrillPerception():
 
         self.posterior_bundle = np.zeros([self.TAU, self.T, 2])
 
+
     def ln(self, array):
         array[array==0] = 1e-20
         return np.log(array)

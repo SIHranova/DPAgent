@@ -108,6 +108,8 @@ class HDP():
 
         self.posterior_states = np.zeros([self.TAU,self.T, self.ns, self.T, self.npi, self.max_context])
         self.observations = np.zeros([self.TAU,self.T], dtype=int)              # array storing observations
+        self.rewards = np.zeros([self.TAU,self.T], dtype=int)              # array storing observations
+
         self.context = np.zeros(self.TAU, dtype=int)                            # array storing inferred context
         self.posterior_context = np.zeros([self.TAU, self.T, self.max_context]) # array storing posterior over contextss
         self.actions = np.zeros([self.TAU, self.T])
@@ -229,10 +231,10 @@ class HDP():
     def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies):
 
 
-        if tau < 2:
+        if tau == 0:
             prior_context = self.prior_context
         else:
-            prior_context = self.transition_matrix.dot(self.posterior_context[tau-2,self.T-1])
+            prior_context = self.transition_matrix.dot(self.posterior_context[tau-1,self.T-1])
         
 
         if t>0:
@@ -242,54 +244,88 @@ class HDP():
             outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
             policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
             policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
-            context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
-            context_likelihood[:self.K+1] = softmax(context_likelihood[:self.K+1])
+            obs_messages = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
+            obs_messages[:self.K+1] = self.ln(softmax(obs_messages[:self.K+1]))
         else:
-            context_likelihood = np.zeros(self.max_context)
-            context_likelihood[:self.K+1] = 1
+            obs_messages = np.zeros(self.max_context)
 
-
-        if t==self.T-1:
-            self.context_likelihood[tau] = context_likelihood
-
-        # Infers q(c_t,c_{t-1}) via Bethe Approximation
-
-        if tau == 0:
-            
-            obs_messages = np.array([context_likelihood, np.ones(self.max_context)])
-            q_z = np.array([self.global_prior, np.ones(self.max_context)])
-
-        else:
-
-            # [[p'(o_{t-1,1:W}| c_{t-1},z_{t-1})],
-            #  [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]]
-            obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
-            
-            # q_z = \int_{beta} q(z|beta)q(beta)
-            q_z = np.array([self.global_prior, self.global_prior])
-
-
-        # sum_{z_{t}} q(z_t) log \prod_w p'(o_tw|c_t=k,z_t=k) = log \prod_w \phi'_{wk}^{q(z_t=k)}
-        obs_messages = obs_messages**q_z
-        
-        
         #  q(c_t,c_t-1)
-        q_c = self.transition_matrix*prior_context[None,:]*obs_messages[0,:][None,:]*obs_messages[1,:][:,None]
+        q_z = self.global_prior
+        q_c = self.ln(prior_context) + q_z*obs_messages
         
-        #  q(c_t) = sum_{c_{t-1}} q(c_t,c_{t-1})
-        q_c = (q_c/q_c.sum()).sum(axis=1)
-
-        self.posterior_context[tau,t] = q_c
-
+        q_c[:self.K+1] = softmax(q_c[:self.K+1])
+        q_c[self.K+1:] = np.exp(q_c[self.K+1:]).round(1)
         assert np.isclose(q_c.sum(),1)
+        self.posterior_context[tau,t] = q_c
         
         return q_c
+
+
+    # def update_beliefs_context_old(self, tau, t, posterior_policies, likelihood_policies):
+
+
+    #     if tau < 2:
+    #         prior_context = self.prior_context
+    #     else:
+    #         prior_context = self.transition_matrix.dot(self.posterior_context[tau-2,self.T-1])
+        
+
+    #     if t>0:
+
+    #         alphas = self.prior_policies_counts[tau]
+                       
+    #         outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
+    #         policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
+    #         policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
+    #         context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
+    #         context_likelihood[:self.K+1] = softmax(context_likelihood[:self.K+1])
+    #     else:
+    #         context_likelihood = np.zeros(self.max_context)
+    #         context_likelihood[:self.K+1] = 1
+
+
+    #     if t==self.T-1:
+    #         self.context_likelihood[tau] = context_likelihood
+
+    #     # Infers q(c_t,c_{t-1}) via Bethe Approximation
+
+    #     if tau == 0:
+            
+    #         obs_messages = np.array([context_likelihood, np.ones(self.max_context)])
+    #         q_z = np.array([self.global_prior, np.ones(self.max_context)])
+
+    #     else:
+
+    #         # [[p'(o_{t-1,1:W}| c_{t-1},z_{t-1})],
+    #         #  [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]]
+    #         obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
+            
+    #         # q_z = \int_{beta} q(z|beta)q(beta)
+    #         q_z = np.array([self.global_prior, self.global_prior])
+
+
+    #     # sum_{z_{t}} q(z_t) log \prod_w p'(o_tw|c_t=k,z_t=k) = log \prod_w \phi'_{wk}^{q(z_t=k)}
+    #     print(tau,t)
+    #     obs_messages = obs_messages**q_z
+
+    #     #  q(c_t,c_t-1)
+    #     q_c = self.transition_matrix*prior_context[None,:]*obs_messages[0,:][None,:]*obs_messages[1,:][:,None]
+        
+    #     #  q(c_t) = sum_{c_{t-1}} q(c_t,c_{t-1})
+    #     q_c = (q_c/q_c.sum()).sum(axis=1)
+
+    #     self.posterior_context[tau,t] = q_c
+
+    #     assert np.isclose(q_c.sum(),1)
+        
+    #     return q_c
 
 
     def update_beliefs(self, t, tau, state, reward, action, observation):
         
         ########## 1. Infer state q(s,r|\pi,c), policy q(\pi|c) and context q(c) posteriors (E-Step)?
         self.observations[tau,t] = observation
+        self.rewards[tau,t] = reward
 
         q_s = self.update_beliefs_states(t, tau, reward, action, observation)
         likelihood_policies, posterior_policies = self.update_beliefs_policies(t,tau)
@@ -336,7 +372,7 @@ class HDP():
             # 3.1 update global context prior params q(beta'|gamma) and construct new q(z_t)
             counts = np.zeros([self.max_context,2])
             gamma_init = np.zeros([self.max_context,2])
-            gamma_init[:self.K,:] = np.array([[1,self.alpha]])
+            gamma_init[:self.K,:] = np.array([[1,self.gamma]])
 
             counts[current_context,0] += 1
             counts[:current_context,1] += 1
