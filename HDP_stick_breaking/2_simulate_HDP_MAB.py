@@ -14,7 +14,7 @@ from agent import HDP
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
-np.random.seed(6)
+np.random.seed(8)
 
 # Task setup parameters
 na = 2
@@ -40,27 +40,26 @@ approx_pred_rew = True
 # gammas = np.arange(0.1,0.4,0.05)
 # alphas = np.arange(1,1.6,0.05) #[1.9]#[2.1]
 # kappas = np.arange(0.05,0.1,0.01)
-# rhos = np.arange(0.9,1, 0.01)
+# rho_global = np.arange(0.9,1, 0.01)
 gammas = np.array([0.2])
 alphas = np.array([1.6])
-kappas = np.array([1])
-rhos = np.array([1])      # rho still broken!!!!!!!!!
+kappas = np.array([0.2])
+rho_global = np.array([1])      # rho still broken!!!!!!!!!
+rho_local = np.array([1])    #0.8  # rho still broken!!!!!!!!!
 
 
-sim_params = product(alphas, gammas, kappas,rhos)
+sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
 reps = 10  # how many times to run simulation with same params
 
-sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rhos.size*reps,7])
-
-
+sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
 
 print(f"-----------------------------------")
-print(f"{alphas.size*kappas.size*gammas.size*rhos.size*reps} simulations to run")
+print(f"{alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps} simulations to run")
 i = -1
 
 #%%
 ###### Run simulations
-for alpha, gamma, kappa, rho in sim_params:
+for alpha, gamma, kappa, rho_l, rho_g in sim_params:
     
     for rep in range(reps):
 
@@ -204,8 +203,9 @@ for alpha, gamma, kappa, rho in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=True, #True
-                    rho=rho)
+                    debug=False, #True
+                    rho_l=rho_l,
+                    rho_g = rho_g)
 
 
 
@@ -337,7 +337,7 @@ for alpha, gamma, kappa, rho in sim_params:
             # ax.set_title("Chosen action")
 
 
-            # #### POLICY PLOT
+            #### POLICY PLOT
             # post_policies = np.einsum('ktpc,ktc->ktp', post_policies, post_context)
             # prior_policies = np.einsum('ktpc,ktc->ktp', prior_policies[:,None,:,:], post_context)
             # like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
@@ -350,6 +350,7 @@ for alpha, gamma, kappa, rho in sim_params:
             # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             # plt.legend()
             # ax.set_title("Beliefs over policy with context integrated out")
+
 
             ### CONTEXT PLOT
             # fig, ax = plt.subplots(1)
@@ -367,10 +368,10 @@ for alpha, gamma, kappa, rho in sim_params:
             #     print(data.prior_rewards[-1,:,:,k].round(3),'\n')
         else:
             true_divergence = np.array([3,3]) # just set to somethin high
-        sim_data[i] = np.array([rep, alpha, gamma, kappa, rho, true_divergence.mean().round(5), agent.K])
+        sim_data[i] = np.array([rep, alpha, gamma, kappa, rho_l, true_divergence.mean().round(5), agent.K])
 
         if i%500 == 0:
-            print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho,6)}, K: {agent.K}")
+            print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho_l,6)}, K: {agent.K}")
 
 # plt.show()
 #%%

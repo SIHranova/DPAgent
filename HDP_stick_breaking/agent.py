@@ -36,7 +36,8 @@ class HDP():
                  h=1000,
                  debug = False,
                  dec_temp = 1,
-                 rho = 0.2     # global prior counts forgetting rate
+                 rho_g = 1,
+                 rho_l = 1,     # global prior counts forgetting rate
                 ):
         
         self.debug = debug
@@ -47,7 +48,6 @@ class HDP():
         self.gamma = gamma                                                 # cluster opening tendency
         self.alpha = alpha                                                 # transitioning into a new cluster tendency
         self.kappa = kappa                                                 # self transition bias
-        self.rho = kappa/(alpha+kappa)
         self.lambda_H = lambda_H                                           # parameters of base Measure H = Dir(lambda)
 
         self.na = na
@@ -69,7 +69,8 @@ class HDP():
 
         self.h = h
         self.dec_temp = dec_temp
-        self.rho = rho
+        self.rho_g = rho_g
+        self.rho_l = rho_l
 
 
     def initialize_beliefs(self):
@@ -246,82 +247,277 @@ class HDP():
             policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
             obs_messages = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
             obs_messages[:self.K+1] = self.ln(softmax(obs_messages[:self.K+1]))
+
         else:
             obs_messages = np.zeros(self.max_context)
 
-        #  q(c_t,c_t-1)
         q_z = self.global_prior
+
         q_c = self.ln(prior_context) + q_z*obs_messages
+
+        # if (np.argmax(q_z) == np.argmax(obs_messages) and t==1):
+        #     if (np.argmax(q_z) != np.argmax(q_z*obs_messages)):
+        # if t==self.T-1:   
+        #     print(f"tau: {tau},t: {t}, observation: {self.observations[tau,t]}, reward: {self.rewards[tau,t]}")
+        #     print(f"q_z       : {q_z.round(3)}")
+        #     print(f"q_o       : {obs_messages.round(3)}")
+        #     print(f"q_z*ln q_o: {q_z*obs_messages.round(3)}")
+        #     print(f"prior     : {self.ln(prior_context).round(3)}")
         
         q_c[:self.K+1] = softmax(q_c[:self.K+1])
         q_c[self.K+1:] = np.exp(q_c[self.K+1:]).round(1)
         assert np.isclose(q_c.sum(),1)
         self.posterior_context[tau,t] = q_c
         
-        return q_c
+        return q_c, None
 
 
-    # def update_beliefs_context_old(self, tau, t, posterior_policies, likelihood_policies):
+    def update_beliefs_context_old(self, tau, t, posterior_policies, likelihood_policies):
 
 
-    #     if tau < 2:
-    #         prior_context = self.prior_context
-    #     else:
-    #         prior_context = self.transition_matrix.dot(self.posterior_context[tau-2,self.T-1])
+        if tau < 2:
+            prior_context = self.prior_context
+        else:
+            prior_context = self.transition_matrix.dot(self.posterior_context[tau-2,self.T-1])
         
 
-    #     if t>0:
+        if t>0:
 
-    #         alphas = self.prior_policies_counts[tau]
+            alphas = self.prior_policies_counts[tau]
                        
-    #         outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
-    #         policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
-    #         policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
-    #         context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
-    #         context_likelihood[:self.K+1] = softmax(context_likelihood[:self.K+1])
-    #     else:
-    #         context_likelihood = np.zeros(self.max_context)
-    #         context_likelihood[:self.K+1] = 1
+            outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
+            policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
+            policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
+            context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
+            context_likelihood[:self.K+1] = softmax(context_likelihood[:self.K+1])
+        else:
+            context_likelihood = np.zeros(self.max_context)
+            context_likelihood[:self.K+1] = 1
 
 
-    #     if t==self.T-1:
-    #         self.context_likelihood[tau] = context_likelihood
+        if t==self.T-1:
+            self.context_likelihood[tau] = context_likelihood
 
-    #     # Infers q(c_t,c_{t-1}) via Bethe Approximation
+        # Infers q(c_t,c_{t-1}) via Bethe Approximation
 
-    #     if tau == 0:
+        if tau == 0:
             
-    #         obs_messages = np.array([context_likelihood, np.ones(self.max_context)])
-    #         q_z = np.array([self.global_prior, np.ones(self.max_context)])
+            obs_messages = np.array([context_likelihood, np.ones(self.max_context)])
+            q_z = np.array([self.global_prior, np.ones(self.max_context)])
 
-    #     else:
+        else:
 
-    #         # [[p'(o_{t-1,1:W}| c_{t-1},z_{t-1})],
-    #         #  [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]]
-    #         obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
+            # [[p'(o_{t-1,1:W}| c_{t-1},z_{t-1})],
+            #  [p'(o_{t,1:W}  | c_{t}  ,z_{t}  )]]
+            obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
             
-    #         # q_z = \int_{beta} q(z|beta)q(beta)
-    #         q_z = np.array([self.global_prior, self.global_prior])
+            # q_z = \int_{beta} q(z|beta)q(beta)
+            q_z = np.array([self.global_prior, self.global_prior])
 
 
-    #     # sum_{z_{t}} q(z_t) log \prod_w p'(o_tw|c_t=k,z_t=k) = log \prod_w \phi'_{wk}^{q(z_t=k)}
-    #     print(tau,t)
-    #     obs_messages = obs_messages**q_z
+        # sum_{z_{t}} q(z_t) log \prod_w p'(o_tw|c_t=k,z_t=k) = log \prod_w \phi'_{wk}^{q(z_t=k)}
+        print(tau,t)
+        obs_messages = obs_messages**q_z
 
-    #     #  q(c_t,c_t-1)
-    #     q_c = self.transition_matrix*prior_context[None,:]*obs_messages[0,:][None,:]*obs_messages[1,:][:,None]
+        # q(c_t=j,c_t-1=k)
+        q_c_joint = self.transition_matrix*prior_context[None,:]*obs_messages[0,:][None,:]*obs_messages[1,:][:,None]
         
-    #     #  q(c_t) = sum_{c_{t-1}} q(c_t,c_{t-1})
-    #     q_c = (q_c/q_c.sum()).sum(axis=1)
+        #  q(c_t) = sum_{c_{t-1}} q(c_t,c_{t-1})
+        q_c_joint = (q_c_joint/q_c_joint.sum())
+        q_c = q_c_joint.sum(axis=1)
+        self.posterior_context[tau,t] = q_c
 
-    #     self.posterior_context[tau,t] = q_c
-
-    #     assert np.isclose(q_c.sum(),1)
+        assert np.isclose(q_c.sum(),1)
         
-    #     return q_c
+        return q_c, q_c_joint
 
 
     def update_beliefs(self, t, tau, state, reward, action, observation):
+        
+        ########## 1. Infer state q(s,r|\pi,c), policy q(\pi|c) and context q(c) posteriors (E-Step)?
+        self.observations[tau,t] = observation
+        self.rewards[tau,t] = reward
+
+        q_s = self.update_beliefs_states(t, tau, reward, action, observation)
+        likelihood_policies, posterior_policies = self.update_beliefs_policies(t,tau)
+        q_c, q_c_joint = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies)
+
+
+        if t == self.T-1:
+            
+            ########## 2. sample context and create new stick breaks and atoms if necessary 
+            current_context = np.argmax(q_c)
+
+            # q_c = np.eye(self.max_context)[current_context]
+            # # DEBUG
+            # q_c_joint = np.zeros([self.max_context,self.max_context])
+            # q_c_joint[current_context,self.context[tau-1]] = 1
+            # if tau < 5:
+                # current_context = 0
+            
+            # if np.any(self.opened_new_context[tau-6:tau-1]) == True and tau>5:
+            #     current_context = np.argmax(q_c[:self.K+1])
+
+
+            self.context[tau] = current_context
+
+            if current_context + 1 > self.K:
+                
+                # print(f"opened new context at tau: {tau}")
+                self.K += 1
+                self.opened_new_context[tau] = True
+
+                # add prior over new weight beta'_k
+                self.global_prior_counts[tau, self.K-1] = [1,self.gamma]
+                
+                # add prior over new atom \phi_k
+                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H # + np.random.uniform(size = self.lambda_H.shape)*0.3
+
+                # add prior over new atom \theta_k
+                self.prior_policies_counts[tau,:,self.K] = self.h
+
+                # add prior over new transition weights
+                self.transition_matrix_counts[np.arange(self.K), [self.K-1]*(self.K), :] = [1,self.alpha]
+                self.transition_matrix_counts[[self.K-1]*(self.K), np.arange(self.K), :] = [1,self.alpha]
+                
+                # add self-transition bias kappa      
+                counts = np.zeros([self.max_context, self.max_context, 2])  
+                counts[self.K-1, self.K-1, 0] = self.kappa
+                counts[:self.K-1, self.K-1, 1] = self.kappa
+                
+                self.transition_matrix_counts = self.transition_matrix_counts + counts
+
+            ########## 3. update parameter estimates (M-step?)
+            
+            chosen_pol = np.argmax(posterior_policies[:,current_context])
+            states = np.argmax(q_s[:,:,chosen_pol, current_context],axis=0)
+            
+            # 3.1 update global context prior params q(beta'|gamma) and construct new q(z_t)
+            counts = np.zeros([self.max_context,2])
+            gamma_init = np.zeros([self.max_context,2])
+            gamma_init[:self.K,:] = np.array([[1,self.gamma]])
+
+            # print(tau,t,self.K)
+            # print("beta updates")
+            # print(f"q_c: {q_c}")
+            # counts[:self.K,0] = q_c[:self.K]
+            # counts[:self.K,1] = (1 - np.cumsum(q_c[:self.K])).round(15)
+            # print(f"counts:\n {counts.T}")
+
+            counts[current_context,0] += 1
+            counts[:current_context,1] += 1
+            
+            self.global_prior_counts[tau+1] = self.rho_g*self.global_prior_counts[tau] + counts + (1-self.rho_g)*gamma_init
+            self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1], approx=False)
+
+
+            # 3.2 update reward probability params phi q(phi|lambda)
+            self.prior_rewards_counts[tau+1] = self.prior_rewards_counts[tau].copy()
+            for obs, state in zip(self.observations[tau,1:], states[1:]):
+                self.prior_rewards_counts[tau+1, reward, state, current_context] += 1
+            self.prior_rewards[tau+1] = np.nan_to_num(self.prior_rewards_counts[tau+1]/self.prior_rewards_counts[tau+1].sum(axis=0)[None,:,:])
+
+
+            # 3.3 update context transition probability params q(eta'|alpha) and construct p'(c_t, c_t-1)
+
+            counts = np.zeros([self.max_context, self.max_context, 2])
+
+            counts[self.context[tau], self.context[tau-1], 0] = 1
+            counts[:self.context[tau], self.context[tau-1], 1] = 1 
+            # print("pi update")
+            # print(q_c_joint)
+            # counts[:self.K,:self.K,0] = q_c_joint[:self.K, :self.K]
+
+            # for j in range(self.K):
+            #     for k in range(self.K):
+            #         counts[k,j,1] = q_c_joint[k+1:self.K,j].sum()
+
+
+            # print(f"counts:\n{counts[:,:,0]}\n{counts[:,:,1]}")
+
+            alpha_init = np.zeros([self.max_context,self.max_context,2])
+            alpha_init[:self.K, :self.K,0] = 1
+            alpha_init[np.arange(self.max_context), np.arange(self.max_context),0] *= self.kappa
+            alpha_init[:self.K, :self.K,1] = self.alpha
+            
+            self.transition_matrix_counts = self.rho_l*self.transition_matrix_counts + counts + (1-self.rho_l)*alpha_init
+
+            self.transition_matrix = self.construct_G_j(approx=False)
+            
+            # 3.4 update context specific policy prior params q(\theta|epsilon)
+
+            counts = self.prior_policies_counts[tau,:,:].copy()
+            counts[chosen_pol,current_context] += 1
+            self.prior_policies_counts[tau+1] = counts
+            self.prior_policies[tau+1] = np.nan_to_num(counts / counts.sum(axis=0))
+
+        ######### Print inferred beliefs
+        if self.debug:
+            if tau < 40:
+                if self.opened_new_context[tau]:
+                    self.K -= 1
+                print(f"--------------------\ntau,t: {tau,t}")
+                print(f"action: {action}, observation: {observation}, reward: {reward}")
+                # print(f"\nq_s for policy:")
+                
+                # for k in range(self.K+1):
+                #     print(q_s[:,:,0,k])
+                #     print(q_s[:,:,1,k])
+
+                print(f"\nq(r|pi,c); policy likelihood:")
+                print(likelihood_policies.round(4))
+
+                print(f"\nq(pi|c) policy posterior:")
+                print(posterior_policies.round(4))
+                
+                print(f"\nq(c):")
+                print(q_c)
+
+                if t == self.T-1:
+                    print(f"\nchosen context:")
+                    print(current_context)
+                    
+                    if self.opened_new_context[tau]:
+                        print("opened new context!")
+
+                    print(f"\nglobal prior counts")
+                    print(self.global_prior_counts[tau+1].T)
+
+                    print(f"\nglobal prior")
+                    print(self.global_prior.round(3))
+
+                    print(f"\nrewards counts:")
+                    print(f"obs, reward: {observation, reward}")
+                    for k in range(self.K+1):
+                        print(f"\n{self.prior_rewards_counts[tau+1,:,:,k]}")
+                    
+                    print(f"prior_rewards")
+                    for k in range(self.K+1):
+                        print(self.prior_rewards[tau+1,:,:,k].round(3))
+
+                    print(f"\ntransition matrix counts")
+                    print(f"contexts:{self.context[tau-1], self.context[tau]}")
+
+                    print("\n")
+                    print(self.transition_matrix_counts[:,:,0])
+                    print("\n")
+                    print(self.transition_matrix_counts[:,:,1])
+                    
+                    print(f"\ntransition matrix")
+                    print(self.transition_matrix)
+                    
+
+                    print(f"\npolicy counts")
+                    print(f"chosen policy:{chosen_pol}")
+                    print(self.prior_policies_counts[tau+1])
+                    print(self.prior_policies[tau+1].round(4))
+                
+                if self.opened_new_context[tau]:
+                    self.K = self.K+1
+        # return action
+
+
+    def update_beliefs_old(self, t, tau, state, reward, action, observation):
         
         ########## 1. Infer state q(s,r|\pi,c), policy q(\pi|c) and context q(c) posteriors (E-Step)?
         self.observations[tau,t] = observation
@@ -336,6 +532,14 @@ class HDP():
             
             ########## 2. sample context and create new stick breaks and atoms if necessary 
             current_context = np.argmax(q_c)
+
+            # if tau < 5:
+                # current_context = 0
+            
+            # if np.any(self.opened_new_context[tau-6:tau-1]) == True and tau>5:
+            #     current_context = np.argmax(q_c[:self.K+1])
+
+
             self.context[tau] = current_context
 
             if current_context + 1 > self.K:
@@ -377,7 +581,7 @@ class HDP():
             counts[current_context,0] += 1
             counts[:current_context,1] += 1
             
-            self.global_prior_counts[tau+1] = self.rho*self.global_prior_counts[tau] + counts + (1-self.rho)*gamma_init
+            self.global_prior_counts[tau+1] = self.rho_g*self.global_prior_counts[tau] + counts + (1-self.rho_g)*gamma_init
             self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1], approx=False)
 
 
@@ -389,13 +593,18 @@ class HDP():
 
 
             # 3.3 update context transition probability params q(eta'|alpha) and construct p'(c_t, c_t-1)
-            if tau > 0:
-                # print(f"tau: {tau}, contexts: {self.context[tau-1]},{self.context[tau]}")
-                counts = np.zeros([self.max_context, self.max_context, 2])
-                counts[self.context[tau], self.context[tau-1], 0] = 1
-                counts[:self.context[tau], self.context[tau-1], 1] = 1 
 
-                self.transition_matrix_counts = self.transition_matrix_counts + counts
+            # print(f"tau: {tau}, contexts: {self.context[tau-1]},{self.context[tau]}")
+            counts = np.zeros([self.max_context, self.max_context, 2])
+            counts[self.context[tau], self.context[tau-1], 0] = 1
+            counts[:self.context[tau], self.context[tau-1], 1] = 1 
+
+            alpha_init = np.zeros([self.max_context,self.max_context,2])
+            alpha_init[:self.K, :self.K,0] = 1
+            alpha_init[np.arange(self.max_context), np.arange(self.max_context),0] *= self.kappa
+            alpha_init[:self.K, :self.K,1] = self.alpha
+            
+            self.transition_matrix_counts = self.rho_l*self.transition_matrix_counts + counts + (1-self.rho_l)*alpha_init
 
             self.transition_matrix = self.construct_G_j(approx=False)
             

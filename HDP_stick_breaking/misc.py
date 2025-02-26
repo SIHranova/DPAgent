@@ -6,7 +6,7 @@ import jsonpickle
 
 
 
-def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1):
+def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False):
     
     if not type(data) is list:
         data = [data]
@@ -27,8 +27,9 @@ def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1):
 
     # plt.show()
     # plt.suptitle("Learned Reward Contingencies")
-    plt.savefig(file_title + ".png",dpi=300)
-    plt.close()
+    if save:
+        plt.savefig(file_title + ".png",dpi=300)
+        plt.close()
     # return fig, axes
 
 
