@@ -49,7 +49,7 @@ rho_local = np.array([1])    #0.8  # rho still broken!!!!!!!!!
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 1  # how many times to run simulation with same params
+reps = 10  # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
 
@@ -295,7 +295,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
             for ind in new_context:
                 ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
-            ax.set_title("Posterior Context")
+            ax.set_title(f"Posterior Context Iteration: {rep}")
             ax.legend(loc="lower right", framealpha=1)
 
             # plt.savefig("test.png",dpi=300)

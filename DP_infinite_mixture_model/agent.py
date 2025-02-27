@@ -66,7 +66,7 @@ class HibachiGrillAgent():
         if (t == self.T-1 and tau < self.TAU-1):
             iter = 0
             atol = 0.0001
-            max_iter = 2
+            max_iter = 50
             diff = True
 
             prev_q_c = np.ones(self.perc.k+1)
@@ -75,7 +75,7 @@ class HibachiGrillAgent():
 
             # somewhere here it breaks, after the second iteration at tau=1?
             while(diff and iter < max_iter):
-
+                # print(iter)
                 posterior_context = self.perc.update_beliefs_context(t, tau, likelihood_policies, posterior_policies, prev_q_w)
                 posterior_bundle = self.perc.update_beliefs_bundle(t, tau, posterior_context)
 
@@ -88,8 +88,8 @@ class HibachiGrillAgent():
                 diff_w = np.any(np.abs(posterior_bundle - prev_q_w) > atol)
                 diff = np.any([diff_c, diff_w])
 
-                prev_q_c = posterior_context
-                prev_q_w = posterior_bundle
+                prev_q_c = posterior_context.copy()
+                prev_q_w = posterior_bundle.copy()
 
                 if tau == 0:
                     diff = False

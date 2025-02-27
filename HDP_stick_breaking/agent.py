@@ -94,7 +94,8 @@ class HDP():
         # self.forward_norms = np.zeros([self.TAU, self.T, self.T+1, self.npi, self.max_context])
         self.likelihood_policies = np.zeros([self.TAU, self.T, self.npi, self.max_context])
         self.posterior_policies = np.zeros([self.TAU, self.T, self.npi, self.max_context])
-
+        self.posterior_global_prior = np.zeros([self.TAU, self.max_context])
+        self.posterior_global_prior[0] = np.eye(self.max_context)[0]
         self.prior_policies_counts = np.zeros([self.TAU+1, self.npi, self.max_context])
         self.prior_policies_counts[0,:,:self.K+1] = self.counts_prior_policies
         
@@ -281,7 +282,8 @@ class HDP():
         #     test[test < -30] = 0
         #     print(f"prior:\n{test}")
 
-    def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies):
+
+    def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies, q_z):
 
         # Infers q(c_t,c_{t-1}) via Bethe Approximation
 
@@ -305,10 +307,8 @@ class HDP():
 
         if tau == 0:
             obs_messages = np.array([context_likelihood, np.zeros(self.max_context)])
-            q_z = np.array([self.global_prior, np.zeros(self.max_context)])
         else:
             obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
-            q_z = np.array([self.construct_G_0(self.global_prior_counts[tau-1]), self.global_prior])
 
 
         # print("infering JOINT q(c_t,c_{t-1} in LOG space") if tau % 100 == 0 else 0
@@ -398,18 +398,48 @@ class HDP():
 
         q_s = self.update_beliefs_states(t, tau, reward, action, observation)
         likelihood_policies, posterior_policies = self.update_beliefs_policies(t,tau)
-        q_c, q_c_joint = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies)
+        
+        if tau == 0:
+            q_z = np.array([np.eye(self.max_context)[0], np.zeros(self.max_context)])
+            q_c, q_c_joint = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies, q_z)
+        else:
+            iter = 0
+            atol = 0.0001
+            max_iter = 50
+            diff = True
 
+            prev_q_c = np.ones(self.max_context)
+            prev_q_z = np.ones(self.max_context) #self.perc.digamma(self.perc.epsilon_bundle_counts[tau-1],0) # initialize to self.perc.digamma(kappa_counts)
 
+            q_z = self.construct_G_0(self.global_prior_counts[tau])
+
+            while diff and iter < max_iter:
+                q_z = np.array([self.posterior_global_prior[tau-1],q_z])
+                q_c, q_c_joint = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies, q_z)
+                q_z = self.ln(self.construct_G_0(self.global_prior_counts[tau])) + q_c*self.context_likelihood[tau]
+                q_z[:self.K] = softmax(q_z[:self.K])
+                q_z[self.K:] = 0
+
+                diff_c = np.any(np.abs(q_c - prev_q_c) > atol)
+                diff_z = np.any(np.abs(q_z - prev_q_z) > atol)
+                diff = np.any([diff_c, diff_z])
+                
+                prev_q_c = q_c.copy()
+                prev_q_z = q_z.copy()
+
+                iter += 1
+
+                print(f"iter: {iter}, q_c: {q_c}, q_z: {q_z}")
+            
         if t == self.T-1:
             
             ########## 2. sample context and create new stick breaks and atoms if necessary 
             current_context = np.argmax(q_c)
         
             # argmax updates
-            # q_c = np.eye(self.max_context)[current_context]
-            # q_c_joint = np.zeros([self.max_context,self.max_context])
-            # q_c_joint[current_context,self.context[tau-1]] = 1
+            q_c = np.eye(self.max_context)[current_context]
+            q_c_joint = np.zeros([self.max_context,self.max_context])
+            q_c_joint[current_context,self.context[tau-1]] = 1
 
             self.context[tau] = current_context
 
