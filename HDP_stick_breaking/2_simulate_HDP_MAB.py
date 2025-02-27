@@ -49,7 +49,7 @@ rho_local = np.array([1])    #0.8  # rho still broken!!!!!!!!!
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 10  # how many times to run simulation with same params
+reps = 1  # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
 
@@ -203,7 +203,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=False, #True
+                    debug=True, #True
                     rho_l=rho_l,
                     rho_g = rho_g)
 
