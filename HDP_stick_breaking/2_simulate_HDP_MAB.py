@@ -16,6 +16,8 @@ from world import World
 plt.rcParams['figure.dpi'] = 100
 np.random.seed(8)
 
+
+
 # Task setup parameters
 na = 2
 nb = 2
@@ -25,15 +27,15 @@ nr = nb+1
 nc = 1
 T = 2
 npi = na**(T-1)
+
 switch = 20
 training_protocol = np.tile(np.arange(2).repeat(switch),5)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
-
 TAU = training_protocol.size
 
 # Agent setup Parameters
 h = 1000
-approx_pred_pol = True  # refers to whether digamma is used or note
+approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
 
@@ -41,18 +43,18 @@ approx_pred_rew = True
 # alphas = np.arange(1,1.6,0.05) #[1.9]#[2.1]
 # kappas = np.arange(0.05,0.1,0.01)
 # rho_global = np.arange(0.9,1, 0.01)
-gammas = np.array([0.2])
-alphas = np.array([1.6])
-kappas = np.array([0.2])
-rho_global = np.array([1])      # rho still broken!!!!!!!!!
-rho_local = np.array([1])    #0.8  # rho still broken!!!!!!!!!
+
+gammas = np.array([0.2])       # global prior context opening tendency
+alphas = np.array([1.6])       # local  prior context opening tendency
+kappas = np.array([0.2])       # self-transition bias
+rho_global = np.array([1])     # global prior counts forgetting rate
+rho_local = np.array([1])      # local prior counts forgetting rate 
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 10  # how many times to run simulation with same params
+reps = 2  # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
-
 print(f"-----------------------------------")
 print(f"{alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps} simulations to run")
 i = -1
@@ -75,12 +77,12 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         '''       define p(s_t|s_t-1, a_t-1)      '''
         prior_states = np.array([0,0,1])
         state_transition_matrix = np.array([[[1,0,1],
-                                            [0,1,0],
-                                            [0,0,0]],
+                                             [0,1,0],
+                                             [0,0,0]],
 
                                             [[1,0,0],
-                                            [0,1,1],
-                                            [0,0,0]]]).transpose(1,2,0)
+                                             [0,1,1],
+                                             [0,0,0]]]).transpose(1,2,0)
 
 
         '''          define p(o_t|s_t)            '''
@@ -116,21 +118,6 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         '''       define dummy utility RV p(R=1) '''
         utility = np.array([0.99, 0.005,0.005])
 
-
-        # '''       define prior over contexts p(c) '''
-        # counts_prior_context = np.array([0]*(nc-1) + [kappa])
-
-        # p = 1
-        # prior_context = np.array([p] + [1-p]*(nc-1))            
-
-        # '''define context transition matrix p(c_t|c_t-1))'''
-
-        # if nc == 1:
-        #     context_transition_matrix = np.array([1])
-        # else:
-        #     p = 0.95
-        #     q = (1-p)/(nc-1)
-        #     context_transition_matrix = np.eye(nc)*(1-2*q) + q
 
         '''   define Env reward generation matrix '''
         p = 0.9
@@ -203,8 +190,8 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=True, #True
-                    rho_l=rho_l,
+                    debug=True, # If set to True will print inferred agent beliefs up to trial 40?
+                    rho_l= rho_l,
                     rho_g = rho_g)
 
 
@@ -216,10 +203,11 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         ############### 
-        # if agent.K == 2:
-        if agent.K >= 1:            
-            ###
+        if agent.K >= 1:  # K is number of inferrred contexts
+            
 
+            ### FOR SARAH: this part of the code deals with how close inferred distributions are to true reward distributions
+            ### It is also kind of broken so you can ignore it
             Q_rew = agent.prior_rewards[-1,:,:,:agent.K]  + 1e-10      # inferred reward distribution given state and context
             P_rew = reward_generation_matrix              + 1e-10      # true reward distribution
 
@@ -227,10 +215,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             true_divergence = np.zeros(2)                              # distance between inferred and true distribution once labels allocated
             divergences = np.zeros((2,agent.K))                        # distance between inferred distribution and all three possible true distributions
 
-            # transition matrix with last row removed
-            # tm = (agent.transition_matrix[:agent.K,:agent.K]/agent.transition_matrix[:agent.K,:agent.K].sum(axis=0)[None,:])
-            
-            # Label allocation problem solution which is probably broken, ignore for now :D 
+            # Label allocation
             for distribution in range(2):
                 
                 for candidate in range(agent.K):
@@ -240,12 +225,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                 # the label given is the one with the smallest divergance
                 labels[distribution] = np.argmin(divergences[distribution])
                 true_divergence[distribution] = divergences[distribution, np.argmin(divergences[distribution])]
-                
             ###
-                    
-
-            # plots = [Q_rew[:2,:2,k] for k in range(agent.K)]
-            # plots = [Q/Q.sum(axis=0) for Q in plots]
 
             plots = [Q_rew[:,:,k] for k in range(agent.K)]
             titles = [None for k in range(agent.K)]
@@ -253,8 +233,14 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
             file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
 
+            ### plots inferred reward distributions for each context
+
             plot_heatmap(data=plots, file_title=file_title, title=titles)
 
+
+
+            ### CONTEXT PLOT
+            
             data = agent
             post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
             prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
@@ -262,12 +248,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             post_context = data.posterior_context[:,:,:data.K]
             actions = data.actions
 
-
-            # plt.style.use('default')
-
-            ## CONTEXT PLOT
-            n_trials = training_protocol.size
-            unexpected_event = np.zeros(n_trials)
+            unexpected_event = np.zeros(TAU)
             
             for trial, trial_type in enumerate(training_protocol):
                 if trial_type == 0:
@@ -276,7 +257,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
 
             inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
-            y_val = agent.posterior_context[np.arange(n_trials),1,inf_context]*unexpected_event
+            y_val = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
             y_val[y_val == 0] = None
             fig, ax = plt.subplots(1, figsize=(5,3))
 
@@ -285,7 +266,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
             # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
-            ax.scatter(np.arange(n_trials), y_val, marker="x", color="k")
+            ax.scatter(np.arange(TAU), y_val, marker="x", color="k")
             for c in range(data.K):
                 ax.plot(post_context[:,1,c],label=f"context {c}")
                 ax.legend()
@@ -367,7 +348,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             # for k in range(agent.K):
             #     print(data.prior_rewards[-1,:,:,k].round(3),'\n')
         else:
-            true_divergence = np.array([3,3]) # just set to somethin high
+            true_divergence = np.array([1000,1000]) # just set to somethin high
         sim_data[i] = np.array([rep, alpha, gamma, kappa, rho_l, true_divergence.mean().round(5), agent.K])
 
         if i%500 == 0:
