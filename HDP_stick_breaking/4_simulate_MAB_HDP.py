@@ -11,7 +11,7 @@ from itertools import product
 
 from misc import *
 from environment import MultiArmedBandit
-from agent import HDP
+from agent import HDP,HDP_IMM 
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
@@ -39,11 +39,11 @@ h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
-gammas = np.array([1])       # global prior context opening tendency
-alphas = np.array([3])       # local  prior context opening tendency
-kappas = np.array([0.7])       # self-transition bias
-rho_global = np.array([0.5])     # global prior counts forgetting rate
-rho_local = np.array([0.5])       # local prior counts forgetting rate 
+gammas = np.array([0.2])       # global prior context opening tendency
+alphas = np.array([1.6])       # local  prior context opening tendency
+kappas = np.array([0.2])       # self-transition bias
+rho_global = np.array([1])     # global prior counts forgetting rate
+rho_local = np.array([1])      # local prior counts forgetting rate 
 
 # gammas = np.arange(0.1,0.4,0.05)
 # alphas = np.arange(1,1.6,0.05) #[1.9]#[2.1]
@@ -191,7 +191,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                             no=no)
 
 
-        agent = HDP(lambda_H = counts,
+        agent = HDP_IMM(lambda_H = counts,
                     TAU=TAU,
                     T=T,
                     gamma=gamma,
