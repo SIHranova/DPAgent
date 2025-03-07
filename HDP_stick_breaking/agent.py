@@ -728,22 +728,32 @@ class HDP():
             else:
                 q_z = np.array([self.construct_G_0(self.global_prior_counts[tau-1]), self.global_prior])
        
-        # if tau < 40:
-        #     print("--------------------")
-        #     print(f"\nterms making up q(c) for tau:{tau}, t:{t}")
-        #     a = self.ln(self.transition_matrix*prior_context[None,:]).round(5)
-        #     a[a == -46.0517] = 0
-        #     print("prior")
-        #     print(a)
-        #     print("obs_messages")
-        #     print(obs_messages.round(4))
-        #     print("q_z")
-        #     print(q_z.round(4))
-        #     print("q_z*obs_messages")
-        #     print((q_z*obs_messages).round(4))
 
+        if tau >= 1 and t==1:
+            print("--------------------")
+            print(f"\nterms making up q(c) for tau:{tau}, t:{t}")
+            a = self.ln(self.transition_matrix*prior_context[None,:]).round(5)
+            a[a == -46.0517] = 0
+            print("prior")
+            print(a[:self.K+1])
+            print("obs_messages")
+            print(obs_messages.round(4))
+            print("q_z")
+            print(q_z.round(4))
+            print("q_z*obs_messages")
+            print((q_z*obs_messages).round(4))
 
-        obs_messages =  self.ln(q_z) + obs_messages # q_z*obs_messages #
+            obs = np.argmax(obs_messages[1, :self.K+1])
+            z = np.argmax(q_z[1, :self.K+1])
+            result = np.argmax((q_z*obs_messages)[1, :self.K+1])
+            print(obs,z,result)
+
+            if (obs==z) and (result != z):
+                print("sign switched!")
+            else:
+                pass
+
+        obs_messages =   q_z*obs_messages # self.ln(q_z) + obs_messages #
         q_c_joint = self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None]
         
         ind = self.K+1 if tau == 0 else self.K
@@ -753,11 +763,6 @@ class HDP():
 
         q_c = q_c_joint.sum(axis=1)
         assert np.isclose(q_c.sum(),1)
-        # if tau < 40:
-        #     print("q_c")
-        #     print((q_c).round(4))
-        #     print("q_c_joint")
-        #     print((q_c_joint).round(4))
             
         self.posterior_context[tau,t] = q_c
         self.posterior_context_joint[tau,t,:,:] = q_c_joint
@@ -899,7 +904,7 @@ class HDP():
             else:
                 current_context = np.argmax(q_c[:self.K])            
 
-            # current_context = np.argmax(q_c)
+            current_context = np.argmax(q_c)
 
             # if c_t = argmax q(c_t) comment out three lines below
             q_c = np.eye(self.max_context)[current_context]

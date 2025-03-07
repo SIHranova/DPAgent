@@ -1,5 +1,7 @@
 #%%
+
 import numpy as np
+np.set_printoptions(suppress=True)
 # %matplotlib widget
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -15,7 +17,7 @@ from agent import HDP
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
-np.random.seed(8)
+np.random.seed(1)
 
 
 
@@ -39,11 +41,11 @@ h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
-gammas = np.array([1])       # global prior context opening tendency
-alphas = np.array([3])       # local  prior context opening tendency
-kappas = np.array([0.7])       # self-transition bias
-rho_global = np.array([0.5])     # global prior counts forgetting rate
-rho_local = np.array([0.5])       # local prior counts forgetting rate 
+# gammas = np.array([1])       # global prior context opening tendency
+# alphas = np.array([3])       # local  prior context opening tendency
+# kappas = np.array([0.7])       # self-transition bias
+# rho_global = np.array([0.5])     # global prior counts forgetting rate
+# rho_local = np.array([0.5])       # local prior counts forgetting rate 
 
 # gammas = np.arange(0.1,0.4,0.05)
 # alphas = np.arange(1,1.6,0.05) #[1.9]#[2.1]
@@ -65,11 +67,11 @@ rho_local = np.array([0.5])       # local prior counts forgetting rate
 
 
 
-# gammas = np.array([0.5])       # global prior context opening tendency
-# alphas = np.array([1.6])       # local  prior context opening tendency
-# kappas = np.array([0.6])       # self-transition bias
-# rho_global = np.array([1])     # global prior counts forgetting rate
-# rho_local = np.array([1])       # local prior counts forgetting rate 
+gammas = np.array([0.2])       # global prior context opening tendency
+alphas = np.array([1.6])       # local  prior context opening tendency
+kappas = np.array([0.1])       # self-transition bias
+rho_global = np.array([1])     # global prior counts forgetting rate
+rho_local = np.array([1])       # local prior counts forgetting rate 
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
@@ -211,7 +213,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=True, # If set to True will print inferred agent beliefs up to trial 40?
+                    debug=False, # If set to True will print inferred agent beliefs up to trial 40?
                     rho_l= rho_l,
                     rho_g = rho_g)
 

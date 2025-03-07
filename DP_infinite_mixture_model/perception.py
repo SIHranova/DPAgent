@@ -234,7 +234,7 @@ class HibachiGrillPerception():
         
 
         # construct \hat{p}(c_t) = int_{\eta} sum_{w_t} q(w_t)q(\eta) ln p(c_2|w_2,\eta')
-        # DEBUG MAYBE NEED TO EXTENDE BY ONE?
+        # DEBUG MAYBE NEED TO EXTEND BY ONE?
         if tau == 0:
             prior_context = self.prior_context[tau,0]
         else:
