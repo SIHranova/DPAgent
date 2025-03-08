@@ -15,7 +15,6 @@ from misc import *
 from environment import MultiArmedBandit
 from agent import HDP
 from world import World
-
 plt.rcParams['figure.dpi'] = 100
 np.random.seed(1)
 
@@ -383,10 +382,34 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         if i%500 == 0:
             print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho_l,6)}, K: {agent.K}")
 
-# plt.show()
 #%%
-        
 
+counts = agent.global_prior_counts.copy()
+q_z = np.array([agent.construct_G_0(counts[trial]) for trial  in range(TAU)])
+obs_messages = np.nan_to_num(agent.context_likelihood)
+
+
+result = q_z*obs_messages
+result[result == 0] = -1000
+result = np.argmax((result),axis=1)
+
+q_z[q_z == 0 ] = -1000
+z = np.argmax(q_z,axis=1)
+obs_messages[obs_messages==0] = -1000
+obs = np.argmax(obs_messages,axis=1)
+q_z[q_z == -1000 ] = None
+obs_messages[obs_messages == -1000] = 0
+
+nc = 4
+plt.figure()
+plt.grid()
+ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+plt.plot(np.arange(TAU-1), obs_messages[1:,:nc],label=[f"obs {c}" for c in range(nc)])
+plt.plot(np.arange(TAU-1), (q_z*obs_messages)[1:,:nc],'-x',label = [f"q_z*obs {c}" for c in np.arange(nc)])
+plt.plot(np.arange(TAU-1), q_z[1:,:nc],'--', label = [f"q_z {c}" for c in np.arange(nc)])
+# plt.ylim([-8,1.5])
+plt.legend()
+plt.show()
 #%% Analyse all sims
 
 # # df.to_csv("regularize_beta_sim_params.csv")
