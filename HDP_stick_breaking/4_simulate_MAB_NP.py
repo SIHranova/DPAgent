@@ -55,7 +55,6 @@ kappas = np.array([0.97])
 reps = 10  # how many times to run simulation with same params
 i = -1
 
-#%%
 ###### Run simulations
 for kappa in kappas:
     
@@ -88,12 +87,13 @@ for kappa in kappas:
         '''           define p(r|s,c)             '''
         lambda_H = np.array([[1,1,1],
                              [1,1,1],
-                             [1,1,100]])
+                             [1,1,100]],dtype=float)
 
         counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
-        counts_prior_rewards[:,:,0] = np.array([[10,2,1],
-                                                [2,10,1],
-                                                [1,1,100]])
+        # counts_prior_rewards[:,:,0] = np.array([[10,2,1],
+        #                                         [2,10,1],
+        #                                         [1,1,100]]) 
+        counts_prior_rewards[:,:,0] += np.random.uniform(low=0, high=1, size=(nr, ns))
 
         if approx_pred_rew:
             prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
@@ -187,11 +187,10 @@ for kappa in kappas:
                     approx_pred_rew = approx_pred_rew,
                     h = h,
                     debug=True, # If set to True will print inferred agent beliefs up to trial 40?
-                    rho_l= rho_l,
-                    rho_g = rho_g)
-
-
-
+                    # rho_l= rho_l,
+                    # rho_g = rho_g,
+                    )
+        
         world = World(agent, env)
         world.simulate_experiment()
 
@@ -225,7 +224,7 @@ for kappa in kappas:
 
             plots = [Q_rew[:,:,k] for k in range(agent.K)]
             titles = [None for k in range(agent.K)]
-            titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
+            # titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
 
             file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
 
@@ -272,7 +271,7 @@ for kappa in kappas:
             for c in range(data.K):
                 ax.plot(post_context[:,1,c],label=f"context {c}")
                 ax.legend()
-                ax.set_title(fr"$\alpha=${alpha}")
+                ax.set_title(fr"$\kappa=${kappa}")
 
             new_context = (data.opened_new_context == True).nonzero()
 
@@ -349,15 +348,15 @@ for kappa in kappas:
             # print(agent.K)
             # for k in range(agent.K):
             #     print(data.prior_rewards[-1,:,:,k].round(3),'\n')
-        else:
-            true_divergence = np.array([1000,1000]) # just set to somethin high
-        sim_data[i] = np.array([rep, alpha, gamma, kappa, rho_l, true_divergence.mean().round(5), agent.K])
+        # else:
+        #     true_divergence = np.array([1000,1000]) # just set to somethin high
+        # sim_data[i] = np.array([rep, alpha, gamma, kappa, rho_l, true_divergence.mean().round(5), agent.K])
 
-        if i%500 == 0:
-            print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho_l,6)}, K: {agent.K}")
+        # if i%500 == 0:
+        #     print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho_l,6)}, K: {agent.K}")
+
 
 # plt.show()
-#%%
         
 
 #%% Analyse all sims

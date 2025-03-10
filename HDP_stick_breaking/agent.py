@@ -18,7 +18,7 @@ class HDP_nonparam():
                  gamma=2,
                  alpha=1,
                  kappa=0,
-                 max_context=6,
+                 max_context=15,
                  state_transition_matrix = None,
                  observation_generation_matrix = None,
                  utility = None,
@@ -84,7 +84,7 @@ class HDP_nonparam():
     
         self.prior_rewards_counts = np.zeros([self.TAU+1, self.nr, self.ns, self.max_context])
         self.prior_rewards_counts[0,:,:,:self.K] = self.counts_prior_rewards                              # int_phi Cat(x|phi)Dir(phi|lambda_H) = Cat(x|lambda_H)  
-        # self.prior_rewards_counts[0,:,:,self.K] = self.lambda_H
+        self.prior_rewards_counts[0,:,:,self.K] = self.lambda_H
         self.prior_rewards = np.nan_to_num(self.prior_rewards_counts/self.prior_rewards_counts.sum(axis=1,keepdims=True))
 
         # self.forward_norms = np.zeros([self.TAU, self.T, self.T+1, self.npi, self.max_context])
@@ -284,7 +284,7 @@ class HDP_nonparam():
 
             current_context = np.argmax(q_c)
 
-            # if c_t = argmax q(c_t) comment out three lines below
+            #if c_t = argmax q(c_t) comment out three lines below
             # q_c = np.eye(self.max_context)[current_context]
             # q_c_joint = np.zeros([self.max_context,self.max_context])
             # q_c_joint[current_context,self.context[tau-1]] = 1
@@ -304,7 +304,7 @@ class HDP_nonparam():
                 #                                                           [1,3,1  ],
                 #                                                           [1,1,100]])
                 # else:
-                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H # + np.random.uniform(size = self.lambda_H.shape)*0.3
+                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H + np.random.uniform(low=0, high=1, size=(3,3)) # + np.random.uniform(size = self.lambda_H.shape)*0.3
 
                 # add prior over new atom \theta_k
                 self.prior_policies_counts[tau,:,self.K] = self.h
@@ -518,8 +518,7 @@ class HDP_nonparam():
         assert np.isclose(q_c.sum(),1)
         
         return q_c, q_c_joint
-
-
+    
 
 class HDP_IMM():
 
@@ -774,10 +773,11 @@ class HDP_IMM():
             q_z = np.array([self.global_prior, np.zeros(self.max_context)])
         else:
             obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
-            q_z = np.array([self.digamma_approximation(self.global_prior_counts[tau-1]), self.global_prior])
+            q_z = np.concatenate([self.global_prior_counts[tau-1,:self.K], np.zeros(self.max_context)[self.K:]])
+            q_z = np.array([self.digamma_approximation(q_z), self.global_prior])
        
 
-        obs_messages =  q_z*obs_messages # self.ln(q_z) + obs_messages # 
+        obs_messages =  obs_messages # q_z*obs_messages # self.ln(q_z) + obs_messages # 
         q_c_joint = self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None]
         
         ind = self.K+1 if tau == 0 else self.K
@@ -815,17 +815,20 @@ class HDP_IMM():
             else:
                 current_context = np.argmax(q_c[:self.K])            
 
-            # current_context = np.argmax(q_c)
+            current_context = np.argmax(q_c)
 
+
+            self.context[tau] = current_context
+
+            if current_context + 1 > self.K and q_c[current_context] < 0.5:
+                current_context = np.argmax(q_c[:self.K])
+            
             # if c_t = argmax q(c_t) comment out three lines below
             q_c = np.eye(self.max_context)[current_context]
             q_c_joint = np.zeros([self.max_context,self.max_context])
             q_c_joint[current_context,self.context[tau-1]] = 1
-
-            self.context[tau] = current_context
-
+            
             if current_context + 1 > self.K:
-                
                 # print(f"\n\nopened new context at tau: {tau}")
                 self.K += 1
                 self.opened_new_context[tau] = True
@@ -834,11 +837,10 @@ class HDP_IMM():
                 self.global_prior_counts[tau, self.K-1:self.K+1] = [1,self.gamma]   # ??? is this the correct initialization? 
                 
                 # add prior over new atom \phi_k
-                # if tau == 0:
-                #     self.prior_rewards_counts[tau,:,:,self.K] = np.array([[3,1,1  ],
-                #                                                           [1,3,1  ],
-                #                                                           [1,1,100]])
-                # else:
+                if tau == 0:
+                    self.prior_rewards_counts[tau,:,:,self.K-1] = np.array([[3,1,1  ],
+                                                                          [1,3,1  ],
+                                                                          [1,1,100]])
                 self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H # + np.random.uniform(size = self.lambda_H.shape)*0.3
 
                 # add prior over new atom \theta_k
@@ -880,7 +882,7 @@ class HDP_IMM():
 
             ### 3.3 update context transition probability params q(eta'|alpha) and construct p'(c_t, c_t-1)
 
-            self.transition_matrix_counts = self.transition_matrix_counts + q_c_joint
+            self.transition_matrix_counts = self.rho_l*self.transition_matrix_counts + q_c_joint + (1-self.rho_l)
             self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
             
             ### 3.4 update context specific policy prior params q(\theta|epsilon)
@@ -890,8 +892,9 @@ class HDP_IMM():
             self.prior_policies_counts[tau+1] = counts
             self.prior_policies[tau+1] = np.nan_to_num(counts / counts.sum(axis=0))
 
+
         ######### Print inferred beliefs
-        if True:
+        if self.debug:
             if tau < 1000:
                 if self.opened_new_context[tau]:
                     self.K -= 1
@@ -927,11 +930,11 @@ class HDP_IMM():
                     for k in range(self.K+1):
                         print(self.prior_rewards[tau+1,:,:,k].round(3))
 
-                    print(f"\nglobal prior counts")
-                    print(self.global_prior_counts[tau+1].T)
+                    # print(f"\nglobal prior counts")
+                    # print(self.global_prior_counts[tau+1].T)
 
-                    print(f"\nglobal prior")
-                    print(self.global_prior.round(3))
+                    # print(f"\nglobal prior")
+                    # print(self.global_prior.round(3))
 
                     print(f"\ntransition matrix counts")
                     print(f"contexts:{self.context[tau-1], self.context[tau]}")
@@ -947,10 +950,10 @@ class HDP_IMM():
                     print(self.transition_matrix)
                     
 
-                    print(f"\npolicy counts")
-                    print(f"chosen policy:{chosen_pol}")
-                    print(self.prior_policies_counts[tau+1])
-                    print(self.prior_policies[tau+1].round(4))
+                    # print(f"\npolicy counts")
+                    # print(f"chosen policy:{chosen_pol}")
+                    # print(self.prior_policies_counts[tau+1])
+                    # print(self.prior_policies[tau+1].round(4))
                 
                 if self.opened_new_context[tau]:
                     self.K = self.K+1
@@ -970,6 +973,7 @@ class HDP_IMM():
         self.actions[tau,t] = chosen_action
         
         return chosen_action
+
 
 class HDP():
 
@@ -1211,10 +1215,6 @@ class HDP():
             context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
             
             context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
-            
-            if tau == 0:
-                context_likelihood = np.zeros(self.max_context)
-                context_likelihood[:2] = self.ln(np.array([0.9999, 1-0.9999]))
         
         else:
             context_likelihood = np.zeros(self.max_context)
@@ -1228,39 +1228,34 @@ class HDP():
             q_z = np.array([self.global_prior, np.zeros(self.max_context)])
         else:
             obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
-            if tau == 1:
-                q_z = np.zeros(self.max_context)
-                q_z[:2] = [0.9999, 1-0.9999]
-                q_z = np.array([q_z, self.global_prior])
-            else:
-                q_z = np.array([self.construct_G_0(self.global_prior_counts[tau-1]), self.global_prior])
+            q_z = np.array([self.construct_G_0(self.global_prior_counts[tau-1]), self.global_prior])
        
 
-        if tau >= 1 and t==1:
-            print("--------------------")
-            print(f"\nterms making up q(c) for tau:{tau}, t:{t}")
-            a = self.ln(self.transition_matrix*prior_context[None,:]).round(5)
-            a[a == -46.0517] = 0
-            print("prior")
-            print(a[:self.K+1])
-            print("obs_messages")
-            print(obs_messages.round(4))
-            print("q_z")
-            print(q_z.round(4))
-            print("q_z*obs_messages")
-            print((q_z*obs_messages).round(4))
+        # if tau >= 1 and t==1:
+        #     print("--------------------")
+        #     print(f"\nterms making up q(c) for tau:{tau}, t:{t}")
+        #     a = self.ln(self.transition_matrix*prior_context[None,:]).round(5)
+        #     a[a == -46.0517] = 0
+        #     print("prior")
+        #     print(a[:self.K+1])
+        #     print("obs_messages")
+        #     print(obs_messages.round(4))
+        #     print("q_z")
+        #     print(q_z.round(4))
+        #     print("q_z*obs_messages")
+        #     print((q_z*obs_messages).round(4))
 
-            obs = np.argmax(obs_messages[1, :self.K+1])
-            z = np.argmax(q_z[1, :self.K+1])
-            result = np.argmax((q_z*obs_messages)[1, :self.K+1])
-            print(obs,z,result)
+        #     obs = np.argmax(obs_messages[1, :self.K+1])
+        #     z = np.argmax(q_z[1, :self.K+1])
+        #     result = np.argmax((q_z*obs_messages)[1, :self.K+1])
+        #     print(obs,z,result)
 
-            if (obs==z) and (result != z):
-                print("sign switched!")
-            else:
-                pass
+        #     if (obs==z) and (result != z):
+        #         print("sign switched!")
+        #     else:
+        #         pass
 
-        obs_messages =   q_z*obs_messages # self.ln(q_z) + obs_messages #
+        obs_messages =   obs_messages# q_z*obs_messages # self.ln(q_z) + obs_messages #
         q_c_joint = self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None]
         
         ind = self.K+1 if tau == 0 else self.K
@@ -1414,9 +1409,9 @@ class HDP():
             current_context = np.argmax(q_c)
 
             # if c_t = argmax q(c_t) comment out three lines below
-            q_c = np.eye(self.max_context)[current_context]
-            q_c_joint = np.zeros([self.max_context,self.max_context])
-            q_c_joint[current_context,self.context[tau-1]] = 1
+            # q_c = np.eye(self.max_context)[current_context]
+            # q_c_joint = np.zeros([self.max_context,self.max_context])
+            # q_c_joint[current_context,self.context[tau-1]] = 1
 
             self.context[tau] = current_context
 

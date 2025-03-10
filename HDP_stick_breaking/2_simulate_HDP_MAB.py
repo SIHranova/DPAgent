@@ -67,21 +67,21 @@ approx_pred_rew = True
 
 
 gammas = np.array([0.2])       # global prior context opening tendency
-alphas = np.array([1.6])       # local  prior context opening tendency
-kappas = np.array([0.1])       # self-transition bias
+alphas = np.array([20])       # local  prior context opening tendency
+kappas = np.array([90])       # self-transition bias
 rho_global = np.array([1])     # global prior counts forgetting rate
-rho_local = np.array([1])       # local prior counts forgetting rate 
+rho_local = np.array([0.1])       # local prior counts forgetting rate 
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 1  # how many times to run simulation with same params
+reps = 10  # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
 print(f"-----------------------------------")
 print(f"{alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps} simulations to run")
 i = -1
 
-#%%
+
 ###### Run simulations
 for alpha, gamma, kappa, rho_l, rho_g in sim_params:
     
@@ -117,9 +117,9 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                            [1,1,100]])
 
         counts_prior_rewards = np.stack([counts for i in range(nc)],axis=-1)
-        # counts_prior_rewards[:,:,0] = np.array([[20,2,1],
-        #                                         [2,20,1],
-        #                                         [1,1,100]])
+        counts_prior_rewards[:,:,0] = np.array([[20,2,1],
+                                                [2,20,1],
+                                                [1,1,100]])
 
         if approx_pred_rew:
             prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
