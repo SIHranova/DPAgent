@@ -18,7 +18,7 @@ class HDP_nonparam():
                  gamma=2,
                  alpha=1,
                  kappa=0,
-                 max_context=15,
+                 max_context=6,
                  state_transition_matrix = None,
                  observation_generation_matrix = None,
                  utility = None,
@@ -313,7 +313,7 @@ class HDP_nonparam():
                 self.transition_matrix[self.K+1:,:] = 0 
                 self.transition_matrix[:,self.K+1:] = 0  
 
-                assert self.transition_matrix.sum() == self.K+1
+                assert np.isclose(self.transition_matrix.sum(), self.K+1)
                 
             ########## 3. update parameter estimates (M-step?)
             
@@ -1399,19 +1399,22 @@ class HDP():
         if t == self.T-1:
             
             ########## 2. sample context and create new stick breaks and atoms if necessary 
-            shift = 0 if tau < 10 else tau - 10
+            # shift = 0 if tau < 10 else tau - 10
 
-            if tau == 0 or not np.any(self.opened_new_context[shift:tau]):
-                current_context = np.argmax(q_c)
-            else:
-                current_context = np.argmax(q_c[:self.K])            
+            # if tau == 0 or not np.any(self.opened_new_context[shift:tau]):
+            #     current_context = np.argmax(q_c)
+            # else:
+            #     current_context = np.argmax(q_c[:self.K])            
 
-            current_context = np.argmax(q_c)
+            if q_c[self.K] >= 0.5:
+                current_context = self.K
+            else: 
+                current_context = np.argmax(q_c[:self.K])
 
             # if c_t = argmax q(c_t) comment out three lines below
-            # q_c = np.eye(self.max_context)[current_context]
-            # q_c_joint = np.zeros([self.max_context,self.max_context])
-            # q_c_joint[current_context,self.context[tau-1]] = 1
+            q_c = np.eye(self.max_context)[current_context]
+            q_c_joint = np.zeros([self.max_context,self.max_context])
+            q_c_joint[current_context,self.context[tau-1]] = 1
 
             self.context[tau] = current_context
 
@@ -1507,6 +1510,20 @@ class HDP():
             counts[chosen_pol,:self.K] += q_c[:self.K]
             self.prior_policies_counts[tau+1] = counts
             self.prior_policies[tau+1] = np.nan_to_num(counts / counts.sum(axis=0))
+
+            ### Close context that are the same!
+
+            # if tau == 65:
+            #     distribution_modes = np.argmax(self.prior_rewards_counts[tau],axis=0)
+            #     distribution_modes[:,2] = distribution_modes[:,1]
+
+            #     duplicate_context = []
+            #     for c in range(self.K):
+            #         match = list(np.arange(self.K)[np.all(distribution_modes[:,:self.K] == distribution_modes[:,c][:,None], axis=0)])
+            #         if len(match) > 1 and not match in duplicate_context:
+            #             duplicate_context.append(match)
+
+            #     for duplicates in duplicate_context:
 
         ######### Print inferred beliefs
         if self.debug:
@@ -2526,3 +2543,5 @@ class HDP_speaker_discretization():
         assert np.all(np.isclose(transition_matrix.sum(axis=0)[:self.K],1))
 
         return transition_matrix
+
+# %%
