@@ -39,7 +39,8 @@ T = 2
 npi = na**(T-1)
 
 switch = 100
-training_protocol = np.tile(np.arange(2).repeat(switch), 1)
+reps = 1
+training_protocol = np.tile(np.arange(2).repeat(switch), reps)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
@@ -48,8 +49,7 @@ h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
-
-kappas = np.array([0.97])
+kappas = np.array([0.9])
 
 
 reps = 10  # how many times to run simulation with same params

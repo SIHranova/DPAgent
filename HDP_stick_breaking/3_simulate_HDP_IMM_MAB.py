@@ -29,8 +29,8 @@ nc = 1
 T = 2
 npi = na**(T-1)
 
-switch = 20
-training_protocol = np.tile(np.arange(2).repeat(switch),5)
+switch = 100
+training_protocol = np.tile(np.arange(2).repeat(switch),1)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
@@ -38,6 +38,7 @@ TAU = training_protocol.size
 h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
+max_context = 7
 
 gammas = np.array([0.2])       # global prior context opening tendency
 alphas = np.array([1.6])       # local  prior context opening tendency
@@ -46,15 +47,15 @@ rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([0])      # local prior counts forgetting rate 
 
 # gammas = np.array([3])       # global prior context opening tendency
-# alphas = np.array([1.6])       # local  prior context opening tendency
-# kappas = np.array([0.5])       # self-transition bias
-# rho_global = np.array([0.4])     # global prior counts forgetting rate
-# rho_local = np.array([0.3])      # local prior counts forgetting rate 
+# alphas = np.array([1.6])     # local  prior context opening tendency
+# kappas = np.array([0.5])     # self-transition bias
+# rho_global = np.array([0.4]) # global prior counts forgetting rate
+# rho_local = np.array([0.3])  # local prior counts forgetting rate 
 
 
 
-gammas = np.array([0.5])       # global prior context opening tendency
-alphas = np.array([13])       # local  prior context opening tendency
+gammas = np.array([0.5])      # global prior context opening tendency
+alphas = np.array([11])       # local  prior context opening tendency
 kappas = np.array([20])       # self-transition bias
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])       # local prior counts forgetting rate 
@@ -99,14 +100,17 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         '''           define p(r|s,c)             '''
-        counts = np.array([[1,1,1],
-                           [1,1,1],
-                           [1,1,100]],dtype=float)
+        lambda_H = np.array([[1,1,1],
+                             [1,1,1],
+                             [1,1,100]],dtype=float)
 
-        counts_prior_rewards = np.stack([counts for i in range(nc)],axis=-1)
-        counts_prior_rewards[:,:,0] = np.array([[20,2,1],
-                                                [2,20,1],
-                                                [1,1,100]])
+        counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
+        bias = 10
+        counts_prior_rewards[:,:,0] = np.array([[bias, 1   , 1   ],
+                                                [1   , bias, 1   ],
+                                                [1   , 1   , 100]])
+        
+        counts_prior_rewards[:,:,0]  += np.random.uniform(low=0,high=1,size=(nr,ns))*0.3
 
         counts_prior_rewards[:,:,0] += np.random.uniform(low=0, high=1, size=(nr,ns))
 
@@ -182,7 +186,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                             no=no)
 
 
-        agent = HDP_IMM(lambda_H = counts,
+        agent = HDP_IMM(lambda_H = lambda_H,
                     TAU=TAU,
                     T=T,
                     gamma=gamma,
@@ -192,8 +196,8 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     observation_generation_matrix = observation_generation_matrix,
                     utility = utility,
                     policies = policies,
-                #  prior_rewards = prior_rewards,
-                #  counts_prior_rewards = counts_prior_rewards,
+                    # prior_rewards = prior_rewards,
+                    counts_prior_rewards = counts_prior_rewards,
                     prior_policies = prior_policies,
                     counts_prior_policies = counts_prior_policies,
                     prior_states = prior_states,
@@ -202,9 +206,11 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=True, # If set to True will print inferred agent beliefs up to trial 40?
+                    debug=False, # If set to True will print inferred agent beliefs up to trial 40?
                     rho_l= rho_l,
-                    rho_g = rho_g)
+                    rho_g = rho_g,
+                    max_context=max_context,
+                    K = nc)
 
 
 
@@ -248,7 +254,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             ### plots inferred reward distributions for each context
 
             plot_heatmap(data=plots, file_title=file_title, title=titles)
-
+            plot_heatmap(agent.transition_matrix.round(2))
 
 
             ### CONTEXT PLOT
@@ -394,8 +400,8 @@ plt.figure()
 plt.grid()
 ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
 plt.plot(np.arange(TAU-1), obs_messages[1:,:nc],label=[f"obs {c}" for c in range(nc)])
-plt.plot(np.arange(TAU-1), (q_z*obs_messages)[1:,:nc],'-x',label = [f"q_z*obs {c}" for c in np.arange(nc)])
-plt.plot(np.arange(TAU-1), q_z[1:,:nc],'--', label = [f"q_z {c}" for c in np.arange(nc)])
+# plt.plot(np.arange(TAU-1), (q_z*obs_messages)[1:,:nc],'-x',label = [f"q_z*obs {c}" for c in np.arange(nc)])
+# plt.plot(np.arange(TAU-1), q_z[1:,:nc],'--', label = [f"q_z {c}" for c in np.arange(nc)])
 # plt.ylim([-8,1.5])
 plt.legend()
 plt.show()
