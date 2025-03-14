@@ -30,8 +30,8 @@ nc = 1
 T = 2
 npi = na**(T-1)
 
-switch = 20    
-training_protocol = np.tile(np.arange(2).repeat(switch),5)
+switch = 100    
+training_protocol = np.tile(np.arange(2).repeat(switch),1)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
@@ -83,7 +83,7 @@ rho_local = np.array([1])      # local prior counts forgetting rate
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 10  # how many times to run simulation with same params
+reps = 1  # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
 print(f"-----------------------------------")

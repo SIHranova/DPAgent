@@ -30,7 +30,8 @@ T = 2
 npi = na**(T-1)
 
 switch = 100
-training_protocol = np.tile(np.arange(2).repeat(switch),1)
+repeats = 5
+training_protocol = np.tile(np.arange(2).repeat(switch),repeats)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
@@ -40,23 +41,16 @@ approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 max_context = 7
 
-gammas = np.array([0.2])       # global prior context opening tendency
-alphas = np.array([1.6])       # local  prior context opening tendency
-kappas = np.array([0.2])       # self-transition bias
-rho_global = np.array([1])     # global prior counts forgetting rate
-rho_local = np.array([0])      # local prior counts forgetting rate 
 
-# gammas = np.array([3])       # global prior context opening tendency
-# alphas = np.array([1.6])     # local  prior context opening tendency
-# kappas = np.array([0.5])     # self-transition bias
-# rho_global = np.array([0.4]) # global prior counts forgetting rate
-# rho_local = np.array([0.3])  # local prior counts forgetting rate 
-
+gammas = np.array([0.2])      # global prior context opening tendency
+alphas = np.array([16])       # local  prior context opening tendency
+kappas = np.array([43])       # self-transition bias
 
 
 gammas = np.array([0.5])      # global prior context opening tendency
-alphas = np.array([11])       # local  prior context opening tendency
-kappas = np.array([43])       # self-transition bias
+alphas = np.array([13])       # local  prior context opening tendency
+kappas = np.array([30])       # self-transition bias
+
 
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])       # local prior counts forgetting rate 
@@ -106,7 +100,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                              [1,1,100]],dtype=float)
 
         counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
-        bias = 10
+        bias = 3
         counts_prior_rewards[:,:,0] = np.array([[bias, 1   , 1   ],
                                                 [1   , bias, 1   ],
                                                 [1   , 1   , 100]])
@@ -208,7 +202,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=True, # If set to True will print inferred agent beliefs up to trial 40?
+                    debug=False, # If set to True will print inferred agent beliefs up to trial 40?
                     rho_l= rho_l,
                     rho_g = rho_g,
                     max_context=max_context,
@@ -403,13 +397,13 @@ obs = np.argmax(obs_messages,axis=1)
 q_z[q_z == -1000 ] = None
 obs_messages[obs_messages == -1000] = 0
 
-nc = 4
+nc = 2
 plt.figure()
 plt.grid()
 ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
 plt.plot(np.arange(TAU-1), obs_messages[1:,:nc],label=[f"obs {c}" for c in range(nc)])
-# plt.plot(np.arange(TAU-1), (q_z*obs_messages)[1:,:nc],'-x',label = [f"q_z*obs {c}" for c in np.arange(nc)])
-# plt.plot(np.arange(TAU-1), q_z[1:,:nc],'--', label = [f"q_z {c}" for c in np.arange(nc)])
+plt.plot(np.arange(TAU-1), (q_z*obs_messages)[1:,:nc],'-x',label = [f"q_z*obs {c}" for c in np.arange(nc)])
+plt.plot(np.arange(TAU-1), q_z[1:,:nc],'--', label = [f"q_z {c}" for c in np.arange(nc)])
 # plt.ylim([-8,1.5])
 plt.legend()
 # plt.show()
