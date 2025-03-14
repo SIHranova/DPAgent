@@ -56,7 +56,8 @@ rho_local = np.array([0])      # local prior counts forgetting rate
 
 gammas = np.array([0.5])      # global prior context opening tendency
 alphas = np.array([11])       # local  prior context opening tendency
-kappas = np.array([20])       # self-transition bias
+kappas = np.array([43])       # self-transition bias
+
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])       # local prior counts forgetting rate 
 
@@ -110,9 +111,10 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                                                 [1   , bias, 1   ],
                                                 [1   , 1   , 100]])
         
-        counts_prior_rewards[:,:,0]  += np.random.uniform(low=0,high=1,size=(nr,ns))*0.3
+        # counts_prior_rewards[:,:,0] +=  np.random.uniform(low=0,high=1,size=(nr,ns))*0.3
 
-        counts_prior_rewards[:,:,0] += np.random.uniform(low=0, high=1, size=(nr,ns))
+        # counts_prior_rewards[:,:,0] += np.random.uniform(low=0, high=1, size=(nr,ns))
+
 
 
         if approx_pred_rew:
@@ -206,7 +208,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=False, # If set to True will print inferred agent beliefs up to trial 40?
+                    debug=True, # If set to True will print inferred agent beliefs up to trial 40?
                     rho_l= rho_l,
                     rho_g = rho_g,
                     max_context=max_context,
@@ -263,7 +265,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
             prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
             like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
-            post_context = data.posterior_context[:,:,:data.K]
+            post_context = data.posterior_context[:,:,:data.K+1]
             actions = data.actions
 
             unexpected_event = np.zeros(TAU)
@@ -281,7 +283,9 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
             y_val_action[y_val_action == 0] = None
 
-
+            K = K = np.cumsum(agent.opened_new_context)+1 
+            novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
+            post_context[np.arange(TAU),:,K[:-1]] = 0
             fig, ax = plt.subplots(1, figsize=(5,3))
 
             ax.set_ylim((0,1.05))
@@ -291,10 +295,14 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
             ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
             ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
+
+            ax.plot(novel_context[:,1], 'gray', label=f"novel context")
+
             for c in range(data.K):
-                ax.plot(post_context[:,1,c],label=f"context {c}")
+                ax.plot(post_context[:,1,c],label=f"context {c+1}")
                 ax.legend()
-                ax.set_title(fr"$\alpha=${alpha}")
+                
+            ax.set_title(fr"$\alpha=${alpha}")
 
             new_context = (data.opened_new_context == True).nonzero()
 
@@ -404,7 +412,7 @@ plt.plot(np.arange(TAU-1), obs_messages[1:,:nc],label=[f"obs {c}" for c in range
 # plt.plot(np.arange(TAU-1), q_z[1:,:nc],'--', label = [f"q_z {c}" for c in np.arange(nc)])
 # plt.ylim([-8,1.5])
 plt.legend()
-plt.show()
+# plt.show()
         
 
 #%% Analyse all sims

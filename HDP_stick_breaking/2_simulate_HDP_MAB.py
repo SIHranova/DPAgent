@@ -221,7 +221,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=False, # If set to True will print inferred agent beliefs up to trial 40?
+                    debug=True, # If set to True will print inferred agent beliefs up to trial 40?
                     rho_l= rho_l,
                     rho_g = rho_g)
 

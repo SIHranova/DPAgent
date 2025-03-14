@@ -1,10 +1,11 @@
 #%%
 import numpy as np
 from scipy.special import digamma, softmax
-
+import seaborn as sns
+import matplotlib.pyplot as plt
 # from environment import data, W, component_params_true, transition_matrix_true, plot_heatmap # data - the words spoken, the speaker and the time point; W -  how many observations are passed at a time
 import warnings
-
+np.set_printoptions(suppress=True)
 
 warnings.filterwarnings("ignore")
 
@@ -635,7 +636,7 @@ class HDP_IMM():
         self.posterior_context_joint = np.zeros([self.TAU, self.T, self.max_context, self.max_context]) # array storing posterior over contextss
         
         self.actions = np.zeros([self.TAU, self.T])
-        self.opened_new_context = np.zeros(self.TAU,dtype=bool)
+        self.opened_new_context = np.zeros(self.TAU+1,dtype=bool)
 
 
     def ln(self, array):
@@ -749,24 +750,34 @@ class HDP_IMM():
 
         return likelihood, posterior_policies
 
-
+    def calculate_context_specific_FE(self, posterior_policies, likelihood_policies, alphas):
+        
+        outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
+        policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
+        policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
+        
+        context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
+        mask = (context_likelihood != 0) & (np.arange(self.max_context) < self.K+1)
+        context_likelihood[mask] = self.ln(softmax(context_likelihood[mask]))
+        
+        return context_likelihood
+    
     def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies):
       
         # print("infering JOINT q(c_t,c_{t-1} in LOG space") if tau % 100 == 0 else 0
 
+        
         prior_context = self.prior_context if tau < 2 else self.transition_matrix.dot(self.posterior_context[tau-2,self.T-1])
 
         if t>0:
-
             alphas = self.prior_policies_counts[tau]
-                       
-            outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
-            policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
-            policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
-
-            context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
-            
-            context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
+            context_likelihood = self.calculate_context_specific_FE(posterior_policies, likelihood_policies, alphas)                       
+            # outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
+            # policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
+            # policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
+            # context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
+            # context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
+            # print(self.context_likelihood)
         
         else:
             context_likelihood = np.zeros(self.max_context)
@@ -790,10 +801,12 @@ class HDP_IMM():
        
 
         obs_messages =  obs_messages # q_z*obs_messages # self.ln(q_z) + obs_messages # 
-        q_c_joint = self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None]
-        
-        # ind = self.K+1 if tau == 0 else self.K
-        q_c_joint[:self.K+1, :self.K] = softmax(q_c_joint[:self.K+1, :self.K])
+        mask =  self.transition_matrix*prior_context[None,:] > 0
+        # prior = self.ln(self.transition_matrix*prior_context[None,:])*(self.transition_matrix*prior_context[None,:] > 0) 
+        q_c_joint =  self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None]
+        q_c_joint *= mask
+
+        q_c_joint[mask] = softmax(q_c_joint[mask])
         q_c_joint[self.K+1:, :] = 0
         q_c_joint[:, self.K:] = 0
 
@@ -844,7 +857,7 @@ class HDP_IMM():
             if current_context + 1 > self.K:
                 # print(f"\n\nopened new context at tau: {tau}")
                 self.K += 1
-                self.opened_new_context[tau] = True
+                self.opened_new_context[tau+1] = True
 
                 # # add prior over new weight beta'_k
                 # self.global_prior_counts[tau, self.K-1:self.K+1] = [1,self.gamma]   # ??? is this the correct initialization? 
@@ -855,10 +868,8 @@ class HDP_IMM():
                 #                                                             [1,10,1  ],
                 #                                                             [1,1,100]])
 
-                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H + np.random.uniform(size = self.lambda_H.shape)*0.3
-
-                # self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H + np.random.uniform(size = self.lambda_H.shape)*0.3
-
+                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
+                self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H #+ np.random.uniform(size = self.lambda_H.shape)*0.3  
                 # add prior over new atom \theta_k
                 self.prior_policies_counts[tau,:,self.K] = self.h
 
@@ -900,13 +911,10 @@ class HDP_IMM():
 
             alpha_init = np.ones([self.max_context, self.max_context]) + np.eye(self.max_context)*self.kappa
             alpha_init[self.K,:] = self.alpha
-            alpha_init[self.K+1,:] = 0
+            alpha_init[self.K+1:,:] = 0
             alpha_init[:,self.K:] = 0
             self.transition_matrix_counts = self.rho_l*self.transition_matrix_counts + q_c_joint + (1-self.rho_l)*alpha_init
             self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
-            
-            if self.K >= 3:
-                a=0
             
             ### 3.4 update context specific policy prior params q(\theta|epsilon)
 
@@ -916,22 +924,112 @@ class HDP_IMM():
             self.prior_policies[tau+1] = np.nan_to_num(counts / counts.sum(axis=0))
 
 
+            ### 3.5 check for duplicate contexts
+            distribution_modes = np.argmax(self.prior_rewards_counts[tau],axis=0)
+
+            duplicate_context = []
+            for c in range(self.K):
+                match = list(np.arange(self.K)[np.all(distribution_modes[:,:self.K] == distribution_modes[:,c][:,None], axis=0)])
+                if len(match) > 1 and not match in duplicate_context:
+                    duplicate_context.append(match)
+
+            ### 3.6 close duplicate contexts
+            if len(duplicate_context) >= 1:
+                
+                ### merge transition counts
+                alpha_init = self.create_alpha_init(self.K)
+                posterior_mass = self.transition_matrix_counts - alpha_init
+    
+                for d in duplicate_context:
+                    posterior_mass[d[0]] = posterior_mass[d].sum(axis=0)
+                    posterior_mass[d[1:]] = 0 
+                    alpha_init[d[1:]] = 0
+                    
+                    posterior_mass[:,d[0]] = posterior_mass[:,d].sum(axis=1)
+                    posterior_mass[:,d[1:]] = 0 
+                    alpha_init[:,[d[1:]]] = 0
+                
+                self.transition_matrix_counts = posterior_mass + alpha_init
+                self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
+                
+                ### merge reward counts
+                init = np.zeros([self.nr, self.ns, self.max_context])
+                init[:,:,:self.init_reward_counts.shape[-1]] = self.init_reward_counts
+                init[:,:,self.init_reward_counts.shape[-1]:self.K+1] = self.lambda_H[:,:,None]
+                posterior_mass = self.prior_rewards_counts[tau+1] - init                   # correct index?
+                
+                for d in duplicate_context:
+                    posterior_mass[:,:,d[0]] = posterior_mass[:,:,d].sum(axis=-1)
+                    posterior_mass[:,:,d[1:]] = 0 
+                    init[:,:,d[1:]] = 0
+                
+                self.prior_rewards_counts[tau+1] =  posterior_mass + init
+                self.prior_rewards[tau+1] = np.nan_to_num(self.prior_rewards_counts[tau+1]/self.prior_rewards_counts[tau+1].sum(axis=0)[None,:,:])
+
+                ### merge policy counts
+                init = np.zeros([self.npi, self.max_context])
+                init[:,:self.K+1] = self.h
+                posterior_mass = self.prior_policies_counts[tau:tau+2] - init[None,:,:]
+                
+                for d in duplicate_context:
+                    posterior_mass[:,:,d[0]] = posterior_mass[:,:,d].sum(axis=-1)
+                    posterior_mass[:,:,d[1:]] = 0 
+                    init[:,d[1:]] = 0
+                
+                self.prior_policies_counts[tau:tau+2] = posterior_mass + init
+                self.prior_policies[tau+1] = np.nan_to_num(self.prior_policies_counts[tau+1] / self.prior_policies_counts[tau+1].sum(axis=0))
+                
+                ### reformat q_c
+                for d in duplicate_context:
+                    new_posterior = self.posterior_context[tau-1:tau+1].copy() 
+                    new_posterior[:,:,d[0]] = new_posterior[:,:,d].sum(axis=-1) 
+                    new_posterior[:,:,d[1:]] = 0
+
+                self.posterior_context[tau-1:tau+1] = new_posterior
+
+
+                ### reformat terms for context update
+                # potential index missmatch!
+                ind = self.K if self.opened_new_context[tau] else self.K+1
+                like = self.context_likelihood[tau].copy()
+                # like[:ind] = np.exp(like[:ind])
+                
+                duplicates = []
+                for d in duplicate_context:
+                    duplicates += d[1:]
+                    like[d[0]] = self.ln(np.exp(like[d]).sum())
+                    like[d[1:]] = 0
+                # like[:ind] = self.ln(like[:ind]       
+                self.context_likelihood[tau] = like
+                
+                print(f"closed contexts: {duplicate_context}")   
+
+                
+                
+                
+                # fig, ax = plt.subplots(1,self.K+1)
+                # for k in range(self.K+1):
+                #     print(counts[:,:,k].round(5))
+                #     sns.heatmap(ax=ax[k], data=self.prior_rewards_counts[tau,:,:,k],annot=True)
+
+
+
         ######### Print inferred beliefs
         if self.debug:
             if tau < 1000:
-                if self.opened_new_context[tau]:
+                if self.opened_new_context[tau+1]:
                     self.K -= 1
                 print(f"--------------------\ntau,t: {tau,t}")
                 print(f"action: {action}, observation: {observation}, reward: {reward}")
 
 
-                print(f"\nq(R|pi,c); policy likelihood:")
-                print(likelihood_policies.round(4))
+                # print(f"\nq(R|pi,c); policy likelihood:")
+                # print(likelihood_policies.round(4))
 
-                print(f"\nq(pi|c) policy posterior:")
-                print(posterior_policies.round(4))
+                # print(f"\nq(pi|c) policy posterior:")
+                # print(posterior_policies.round(4))
                 
-                print(f"\nq(inferred q_c (renormalized?)):")
+                print(f"\nq_c:")
                 print(self.posterior_context[tau,t].round(5))
 
                 # print(f"\ninferred q_c_joint (renormalized?)")
@@ -940,8 +1038,7 @@ class HDP_IMM():
                 if t == self.T-1:
                     print(f"\nchosen context:")
                     print(current_context)
-                    
-                    if self.opened_new_context[tau]:
+                    if self.opened_new_context[tau+1]:
                         print("opened new context!")
 
                     print(f"\nrewards counts:")
@@ -949,9 +1046,9 @@ class HDP_IMM():
                     for k in range(self.K+1):
                         print(f"\n{self.prior_rewards_counts[tau+1,:,:,k]}")
                     
-                    print(f"prior_rewards")
-                    for k in range(self.K+1):
-                        print(self.prior_rewards[tau+1,:,:,k].round(3))
+                    # print(f"prior_rewards")
+                    # for k in range(self.K+1):
+                    #     print(self.prior_rewards[tau+1,:,:,k].round(3))
 
                     # print(f"\nglobal prior counts")
                     # print(self.global_prior_counts[tau+1].T)
@@ -969,8 +1066,8 @@ class HDP_IMM():
                     # print("\n")
                     # print(self.transition_matrix_counts[:,:,1])
                     
-                    print(f"\ntransition matrix")
-                    print(self.transition_matrix)
+                    # print(f"\ntransition matrix")
+                    # print(self.transition_matrix)
                     
 
                     # print(f"\npolicy counts")
@@ -978,10 +1075,20 @@ class HDP_IMM():
                     # print(self.prior_policies_counts[tau+1])
                     # print(self.prior_policies[tau+1].round(4))
                 
-                if self.opened_new_context[tau]:
+                if self.opened_new_context[tau+1]:
                     self.K = self.K+1
 
 
+    def create_alpha_init(self, K):
+        
+        alpha_init = np.ones([self.max_context, self.max_context]) + np.eye(self.max_context)*self.kappa
+        alpha_init[K,:] = self.alpha
+        alpha_init[K+1:,:] = 0
+        alpha_init[:,K:] = 0
+        
+        return alpha_init
+    
+    
     def sample_action(self,t,tau):
 
         post_policies = self.posterior_policies[tau,t]
@@ -991,7 +1098,10 @@ class HDP_IMM():
         post_actions = np.zeros(self.na)
         for a in range(self.na):
             post_actions[a] = post_policies[self.policies[:,t] == a].sum()
-
+        
+        print("Here")
+        print(post_actions.sum())
+        post_actions /= post_actions.sum()
         chosen_action = np.random.choice(np.arange(self.na), p=post_actions)
         self.actions[tau,t] = chosen_action
         
@@ -1555,6 +1665,7 @@ class HDP():
 
             if len(duplicate_context) >= 1:
                 a = 0
+                
         ######### Print inferred beliefs
         if self.debug:
             if tau < 1000:
