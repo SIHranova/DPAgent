@@ -29,7 +29,7 @@ nc = 1
 T = 2
 npi = na**(T-1)
 
-switch = 100
+switch = 20
 repeats = 5
 training_protocol = np.tile(np.arange(2).repeat(switch),repeats)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
@@ -39,15 +39,14 @@ TAU = training_protocol.size
 h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
-max_context = 7
-
+max_context = 20
 
 gammas = np.array([0.2])      # global prior context opening tendency
 alphas = np.array([16])       # local  prior context opening tendency
 kappas = np.array([43])       # self-transition bias
 
 
-gammas = np.array([0.5])      # global prior context opening tendency
+gammas = np.array([1450])      # global prior context opening tendency
 alphas = np.array([13])       # local  prior context opening tendency
 kappas = np.array([30])       # self-transition bias
 
@@ -305,6 +304,11 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             ax.set_title(f"Posterior Context Iteration: {rep}")
             ax.legend(loc="lower right", framealpha=1)
 
+
+            # ### messages plot
+            # q_z = np.array([agent.digamma_approximation(counts[trial]) for trial  in range(TAU)])
+
+
             # plt.savefig("test.png",dpi=300)
 
             # #REWARD ENTROPY PLOT
@@ -380,32 +384,33 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         if i%500 == 0:
             print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho_l,6)}, K: {agent.K}")
 
-# plt.show()
-counts = agent.global_prior_counts.copy()
-q_z = np.array([agent.digamma_approximation(counts[trial]) for trial  in range(TAU)])
-obs_messages = np.nan_to_num(agent.context_likelihood)
+# # plt.show()
+# counts = agent.global_prior_counts.copy()
+# q_z = np.array([agent.digamma_approximation(counts[trial]) for trial  in range(TAU)])
+# obs_messages = np.nan_to_num(agent.context_likelihood)
 
 
-result = q_z*obs_messages
-result[result == 0] = -1000
-result = np.argmax((result),axis=1)
+# result = q_z*obs_messages
+# result[result == 0] = -1000
+# result = np.argmax((result),axis=1)
 
-q_z[q_z == 0 ] = -1000
-z = np.argmax(q_z,axis=1)
-obs_messages[obs_messages==0] = -1000
-obs = np.argmax(obs_messages,axis=1)
-q_z[q_z == -1000 ] = None
-obs_messages[obs_messages == -1000] = 0
+# q_z[q_z == 0 ] = -1000
+# z = np.argmax(q_z,axis=1)
+# obs_messages[obs_messages==0] = -1000
+# obs = np.argmax(obs_messages,axis=1)
+# q_z[q_z == -1000 ] = None
+# obs_messages[obs_messages == -1000] = 0
 
-nc = 2
-plt.figure()
-plt.grid()
-ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-plt.plot(np.arange(TAU-1), obs_messages[1:,:nc],label=[f"obs {c}" for c in range(nc)])
-plt.plot(np.arange(TAU-1), (q_z*obs_messages)[1:,:nc],'-x',label = [f"q_z*obs {c}" for c in np.arange(nc)])
-plt.plot(np.arange(TAU-1), q_z[1:,:nc],'--', label = [f"q_z {c}" for c in np.arange(nc)])
-# plt.ylim([-8,1.5])
-plt.legend()
+# nc = 2
+# plt.figure()
+# plt.grid()
+# ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+# plt.plot(np.arange(TAU-1), obs_messages[1:,:nc],label=[f"obs {c}" for c in range(nc)])
+# plt.plot(np.arange(TAU-1), (q_z*obs_messages)[1:,:nc],'-x',label = [f"q_z*obs {c}" for c in np.arange(nc)])
+# plt.plot(np.arange(TAU-1), q_z[1:,:nc],'--', label = [f"q_z {c}" for c in np.arange(nc)])
+# # plt.ylim([-8,1.5])
+# plt.legend()
+
 # plt.show()
         
 

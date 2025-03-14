@@ -605,7 +605,7 @@ class HDP_IMM():
         self.transition_matrix_counts[0,0] = self.kappa + 1
         self.transition_matrix_counts[1,0] = self.alpha
         self.transition_matrix_counts[0,1] = 1
-        self.transition_matrix_counts[1,1] = 10 #self.kappa
+        self.transition_matrix_counts[1,1] = 5 #self.kappa
         self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
 
         self.prior_rewards_counts = np.zeros([self.TAU+1, self.nr, self.ns, self.max_context])
@@ -639,6 +639,17 @@ class HDP_IMM():
         
         self.actions = np.zeros([self.TAU, self.T])
         self.opened_new_context = np.zeros(self.TAU+1,dtype=bool)
+
+        print("---------   INITIAL BELIEFS -------------")
+        print(f"\n{self.K} contexts")
+        print(f"\nglobal prior: {self.global_prior_counts[0].round(3)}")
+        
+        print(f"\ntransition matrix")
+        print(self.transition_matrix_counts.round(3))
+
+        print(f"\nprior rewards")
+        for k in range(self.K+1):
+            print(self.prior_rewards_counts[0,:,:,k].round(3))
 
 
     def ln(self, array):
@@ -780,24 +791,36 @@ class HDP_IMM():
             q_z = np.array([self.global_prior, np.zeros(self.max_context)])
         else:
             obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
-            q_z = [self.digamma_approximation(self.global_prior_counts[tau-1]), self.global_prior]
-            
+            q_z = np.array([self.digamma_approximation(self.global_prior_counts[tau-1]), self.global_prior])
 
 
-        obs_messages = q_z*obs_messages # obs_messages # self.ln(q_z) + obs_messages #  
+        obs_messages = obs_messages # self.ln(q_z) + obs_messages #   q_z*obs_messages #
         
         
         q_c_joint = self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None]
-        q_c_joint[:self.K+1, :self.K] = softmax(q_c_joint[:self.K+1, :self.K])
+        q_c_joint[:self.K+1, :self.K+1] = softmax(q_c_joint[:self.K+1, :self.K+1])
         q_c_joint[self.K+1:, :] = 0
-        q_c_joint[:, self.K:] = 0
+        q_c_joint[:, self.K+1:] = 0
 
         q_c = q_c_joint.sum(axis=1)
         assert np.isclose(q_c.sum(),1)
 
-            
         self.posterior_context[tau,t] = q_c
         self.posterior_context_joint[tau,t,:,:] = q_c_joint
+
+        if self.debug:
+            print(f"\n-----------------------------")
+            print(f"context inference terms at tau: {tau}, t: {t}")
+            print(f"prior_context: {prior_context}")
+            print(f"T*q(s)       :\n{(self.transition_matrix*prior_context[None,:]).round(3)}")
+            if t != 0:
+                print(f"obs_message  :\n{np.array([self.context_likelihood[tau-1], context_likelihood]).round(3)}")
+                print(f"q_z          :\n{q_z.round(3)}")
+                print(f"q_z*obs      :\n{obs_messages.round(3)}")
+            print(f"q_c_joint    :\n{q_c_joint.round(3)}")
+            print(f"q_c:         :{q_c.round(3)}")
+
+
         return q_c, q_c_joint
 
 
@@ -831,9 +854,9 @@ class HDP_IMM():
 
             
             # if c_t = argmax q(c_t) comment out three lines below
-            # q_c = np.eye(self.max_context)[current_context]
-            # q_c_joint = np.zeros([self.max_context,self.max_context])
-            # q_c_joint[current_context,self.context[tau-1]] = 1
+            q_c = np.eye(self.max_context)[current_context]
+            q_c_joint = np.zeros([self.max_context,self.max_context])
+            q_c_joint[current_context,self.context[tau-1]] = 1
 
             
             if current_context + 1 > self.K:
@@ -857,7 +880,7 @@ class HDP_IMM():
                 self.transition_matrix_counts[self.K,:self.K] = self.alpha
     
                 self.transition_matrix_counts[:self.K+1, self.K] = 1
-                self.transition_matrix_counts[self.K, self.K] =  10 #self.kappa
+                self.transition_matrix_counts[self.K, self.K] =  5 #self.kappa
             ########## 3. update parameter estimates (M-step?) 
             
             # renormalizes probability after excluding new context possibility
@@ -914,22 +937,19 @@ class HDP_IMM():
 
 
                 print(f"\nq(R|pi,c); policy likelihood:")
-                print(likelihood_policies.round(4))
+                print(likelihood_policies.round(3))
 
-                print(f"\nq(pi|c) policy posterior:")
-                print(posterior_policies.round(4))
+                print(f"q(pi|c) policy posterior:")
+                print(posterior_policies.round(3))
                 
-                print(f"\nq_c:")
-                print(self.posterior_context[tau,t].round(5))
+                print(f"\nq_c (renormalised):")
+                print(q_c.round(3))
 
                 print(f"\ninferred q_c_joint (renormalized?)")
-                print(q_c_joint.round(5))
+                print(q_c_joint.round(3))
 
                 if t == self.T-1:
-                    print(f"\nchosen context:")
-                    print(current_context)
-                    if self.opened_new_context[tau+1]:
-                        print("opened new context!")
+                    print(f"\nchosen context: {current_context}, opened new: {self.opened_new_context[tau+1]}")
 
                     print(f"\nrewards counts:")
                     print(f"obs, reward: {observation, reward}")
@@ -944,24 +964,24 @@ class HDP_IMM():
                     print(self.global_prior_counts[tau+1].T)
 
                     print(f"\nglobal prior")
-                    print(self.global_prior.round(3))
+                    print(self.global_prior.round(5))
 
-                    print(f"\ntransition matrix counts")
-                    print(f"contexts:{self.context[tau-1], self.context[tau]}")
-
-                    print(self.transition_matrix_counts)
 
                     print(f"\ntransition matrix")
-                    print(self.transition_matrix)
+                    print(f"contexts:{self.context[tau-1], self.context[tau]}")
+                    print(self.transition_matrix_counts)
+                    print(self.transition_matrix.round(3))
                     
 
                     # print(f"\npolicy counts")
                     # print(f"chosen policy:{chosen_pol}")
                     # print(self.prior_policies_counts[tau+1])
-                    # print(self.prior_policies[tau+1].round(4))
+                    # print(self.prior_policies[tau+1].round(3))
                 
                 if self.opened_new_context[tau+1]:
                     self.K = self.K+1
+
+                a = 0
 
 
     def create_alpha_init(self, K):
@@ -984,8 +1004,7 @@ class HDP_IMM():
         for a in range(self.na):
             post_actions[a] = post_policies[self.policies[:,t] == a].sum()
         
-        print("Here")
-        print(post_actions.sum())
+        assert (np.isclose(post_actions.sum(), 1))
         post_actions /= post_actions.sum()
         chosen_action = np.random.choice(np.arange(self.na), p=post_actions)
         self.actions[tau,t] = chosen_action
