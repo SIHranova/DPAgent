@@ -52,6 +52,7 @@ class HDP_nonparam():
         self.prior_rewards = prior_rewards
         self.counts_prior_rewards = counts_prior_rewards 
         self.na = na
+        self.nc = self.K+1
         self.nr = utility.size
         self.ns = prior_states.size
         self.npi = prior_policies.size
@@ -79,10 +80,10 @@ class HDP_nonparam():
         self.prior_context[0] = 1                                                         # context prior p(c1)
 
         self.transition_matrix = np.eye(self.max_context)*self.kappa + (0 == np.eye(self.max_context))* (1-self.kappa)/(self.K)
-        # self.transition_matrix[self.K+1:,:] = 0 
-        # self.transition_matrix[:,self.K+1:] = 0
+        # self.transition_matrix[:,self.K] = (np.arange(self.max_context) <= self.K)*1/(self.K+1)
         self.transition_matrix[self.K+1:,:] = 0 
-        self.transition_matrix[:,self.K:] = 0
+        self.transition_matrix[:,self.K+1:] = 0
+    
         self.prior_rewards_counts = np.zeros([self.TAU+1, self.nr, self.ns, self.max_context])
         self.prior_rewards_counts[0,:,:,:self.K] = self.counts_prior_rewards                              # int_phi Cat(x|phi)Dir(phi|lambda_H) = Cat(x|lambda_H)  
         self.prior_rewards_counts[0,:,:,self.K] = self.lambda_H
@@ -113,7 +114,7 @@ class HDP_nonparam():
         self.posterior_context_joint = np.zeros([self.TAU, self.T, self.max_context, self.max_context]) # array storing posterior over contextss
         
         self.actions = np.zeros([self.TAU, self.T])
-        self.opened_new_context = np.zeros(self.TAU,dtype=bool)
+        self.opened_new_context = np.zeros(self.TAU+1,dtype=bool)
 
 
     def ln(self, array):
@@ -236,11 +237,8 @@ class HDP_nonparam():
         if tau == 0:
             prior_context = self.prior_context
         else:
-            normalized = self.posterior_context[tau-1,self.T-1].copy() / self.posterior_context[tau-1,self.T-1,:self.K].sum()
-            normalized[self.K] = 0
-            
-            prior_context = self.transition_matrix.dot(normalized)
-            # assert(np.isclose(prior_context.sum(),1))        
+            prior_context = self.transition_matrix.dot(self.posterior_context[tau-1,self.T-1])
+        
 
         if t>0:
 
@@ -299,7 +297,7 @@ class HDP_nonparam():
                 
                 # print(f"\n\nopened new context at tau: {tau}")
                 self.K += 1
-                self.opened_new_context[tau] = True
+                self.opened_new_context[tau+1] = True
 
                 
                 # add prior over new atom \phi_k
@@ -308,17 +306,17 @@ class HDP_nonparam():
                 #                                                           [1,3,1  ],
                 #                                                           [1,1,100]])
                 # else:
-                self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H + np.random.uniform(low=0, high=1, size=(3,3)) # + np.random.uniform(size = self.lambda_H.shape)*0.3
-                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H #np.random.uniform(low=0, high=1, size=(3,3)) # + np.random.uniform(size = self.lambda_H.shape)*0.3
+                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H + np.random.uniform(low=0, high=1, size=(self.nr,self.npi+1)) # + np.random.uniform(size = self.lambda_H.shape)*0.3
 
                 # add prior over new atom \theta_k
                 self.prior_policies_counts[tau,:,self.K] = self.h
 
                 self.transition_matrix = np.eye(self.max_context)*self.kappa + (0 == np.eye(self.max_context))* (1-self.kappa)/(self.K)
+                # self.transition_matrix[:,self.K] = (np.arange(self.max_context) <= self.K)*1/(self.K+1)
                 self.transition_matrix[self.K+1:,:] = 0 
-                self.transition_matrix[:,self.K:] = 0  
+                self.transition_matrix[:,self.K+1:] = 0  
 
-                assert np.isclose(self.transition_matrix.sum(), self.K)
+                # assert self.transition_matrix.sum() == self.K+1
                 
             ########## 3. update parameter estimates (M-step?)
             
@@ -523,7 +521,6 @@ class HDP_nonparam():
         assert np.isclose(q_c.sum(),1)
         
         return q_c, q_c_joint
-    
 
 class HDP_IMM():
 

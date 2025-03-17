@@ -19,28 +19,28 @@ np.random.seed(8)
 
 
 
-# Task setup parameters
-# na = 2
-# nb = 5
-# ns = na + 1
-# no = ns
-# nr = 3
-# nc = 1
-# T = 2
-# npi = na**(T-1)
-
-na = 2
-nb = 2
+na = 5
+nb = na
 ns = nb+1
 no = ns
-nr = nb+1
+nr = 3
 nc = 1
 T = 2
 npi = na**(T-1)
 
+
+# na = 2
+# nb = 2
+# ns = nb+1
+# no = ns
+# nr = nb+1
+# nc = 1
+# T = 2
+# npi = na**(T-1)
+
 switch = 100
 reps = 1
-training_protocol = np.tile(np.arange(2).repeat(switch), reps)
+training_protocol = np.tile(np.arange(3).repeat(switch), reps)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
@@ -49,10 +49,10 @@ h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
-kappas = np.array([0.9])
+kappas = np.array([0.93 ])
 
 
-reps = 10  # how many times to run simulation with same params
+reps = 1  # how many times to run simulation with same params
 i = -1
 
 ###### Run simulations
@@ -70,14 +70,17 @@ for kappa in kappas:
 
 
         '''       define p(s_t|s_t-1, a_t-1)      '''
-        prior_states = np.array([0,0,1])
-        state_transition_matrix = np.array([[[1,0,1],
-                                             [0,1,0],
-                                             [0,0,0]],
+        prior_states = np.array([0]*nb + [1]) # np.array([0,0,1])
+        state_transition_matrix = np.array([np.eye(nb+1)]*nb).transpose([1,2,0])
+        state_transition_matrix[:,-1,:] = np.eye(nb+1)[:,:-1]
+        
+        # state_transition_matrix = np.array([[[1,0,1],
+        #                                      [0,1,0],
+        #                                      [0,0,0]],
 
-                                            [[1,0,0],
-                                             [0,1,1],
-                                             [0,0,0]]]).transpose(1,2,0)
+        #                                     [[1,0,0],
+        #                                      [0,1,1],
+        #                                      [0,0,0]]]).transpose(1,2,0)
 
 
         '''          define p(o_t|s_t)            '''
@@ -85,10 +88,12 @@ for kappa in kappas:
 
 
         '''           define p(r|s,c)             '''
-        lambda_H = np.array([[1,1,1],
-                             [1,1,1],
-                             [1,1,100]],dtype=float)
+        # lambda_H = np.array([[1,1,1],
+        #                      [1,1,1],
+        #                      [1,1,100]],dtype=float)
 
+        lambda_H = np.ones([nr,ns])
+        lambda_H[-1,-1] = 100
         counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
         # counts_prior_rewards[:,:,0] = np.array([[10,2,1],
         #                                         [2,10,1],
@@ -117,15 +122,25 @@ for kappa in kappas:
 
         '''   define Env reward generation matrix '''
         p = 0.9
-        q = 1 - p
-        reward_generation_matrix =  np.array([[[p, q, 0], 
-                                               [q, p, 0], 
-                                               [0, 0, 1]], 
+        q = 1 - p  
+        # reward_generation_matrix =  np.array([[[p, q, 0], 
+        #                                        [q, p, 0], 
+        #                                        [0, 0, 1]], 
                                             
-                                              [[q, p, 0], 
-                                               [p, q, 0], 
-                                               [0, 0, 1]]]).transpose(1,2,0)
+        #                                       [[q, p, 0], 
+        #                                        [p, q, 0], 
+        #                                        [0, 0, 1]]]).transpose(1,2,0)
 
+        bandits = np.arange(nb)
+        reward_generation_matrix = np.ones([nr,ns,len(bandits)])*q
+
+        for context,b in enumerate(bandits):
+            reward_generation_matrix[0,b,context] = p
+            reward_generation_matrix[1,np.arange(nb+1) != b,context] = p
+
+        reward_generation_matrix[-1,:] = 0
+        reward_generation_matrix[:,-1] = 0
+        reward_generation_matrix[-1,-1] = 1
 
         ######## Plot task setup
         if False:
@@ -186,7 +201,7 @@ for kappa in kappas:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=True, # If set to True will print inferred agent beliefs up to trial 40?
+                    debug=False, # If set to True will print inferred agent beliefs up to trial 40?
                     # rho_l= rho_l,
                     # rho_g = rho_g,
                     )
@@ -240,23 +255,29 @@ for kappa in kappas:
             post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
             prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
             like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
-            post_context = data.posterior_context[:,:,:data.K]
+            post_context = data.posterior_context[:,:,:data.K+1]
             actions = data.actions
 
-            unexpected_event = np.zeros(TAU)
+            # unexpected_event = np.zeros(TAU)
             
-            for trial, trial_type in enumerate(training_protocol):
-                if trial_type == 0:
-                    unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
-                else:
-                    unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
+            # for trial, trial_type in enumerate(training_protocol):
+            #     if trial_type == 0:
+            #         unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
+            #     else:
+            #         unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
 
-            inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
-            y_val_unexp_event = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
-            y_val_unexp_event[y_val_unexp_event == 0] = None
+            # inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
+            # y_val_unexp_event = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
+            # y_val_unexp_event[y_val_unexp_event == 0] = None
 
-            y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
-            y_val_action[y_val_action == 0] = None
+            # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
+            # y_val_action[y_val_action == 0] = None
+
+            ###
+            K = K = np.cumsum(agent.opened_new_context)+1 
+            novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
+            post_context[np.arange(TAU),:,K[:-1]] = 0
+
 
 
             fig, ax = plt.subplots(1, figsize=(5,3))
@@ -266,19 +287,22 @@ for kappa in kappas:
             ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
             # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
-            ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
-            ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
-            for c in range(data.K):
-                ax.plot(post_context[:,1,c],label=f"context {c}")
-                ax.legend()
-                ax.set_title(fr"$\kappa=${kappa}")
+            # ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
+            # ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
 
+
+            for c in range(data.K):
+                ax.plot(post_context[:,1,c],label=f"context {c+1}")
+            
+            ax.plot(novel_context[:,1], 'gray', label=f"novel context")
             new_context = (data.opened_new_context == True).nonzero()
 
             for ind in new_context:
                 ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
             ax.set_title(f"Posterior Context Iteration: {rep}")
-            ax.legend(loc="lower right", framealpha=1)
+            fig.legend(bbox_to_anchor=[1.25,0.7])
+            
+            # ax.legend(loc="lower right", framealpha=1)
 
             # plt.savefig("test.png",dpi=300)
 

@@ -21,7 +21,7 @@ class World():
             for t in range(self.T):
                 if t == 0:
                     action=None
-                    state = self.environment.initialize_hidden_state(tau, starting_state=2)
+                    state = self.environment.initialize_hidden_state(tau, starting_state=self.environment.nb)
                 else:
                     state = self.environment.sample_hidden_state(t, tau, action)
 

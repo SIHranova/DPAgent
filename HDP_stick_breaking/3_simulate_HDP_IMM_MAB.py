@@ -62,7 +62,7 @@ rho_local = np.array([1])       # local prior counts forgetting rate
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 10  # how many times to run simulation with same params
+reps = 1 # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
 print(f"-----------------------------------")
@@ -149,7 +149,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         ######## Plot task setup
-        if False:
+        if True:
             '''Plot state transition matrix'''
             fig,axes = plt.subplots(1,2,figsize=(6,3))
             for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
