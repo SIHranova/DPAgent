@@ -606,8 +606,13 @@ class HDP_IMM():
         self.transition_matrix_counts[1,0] = self.alpha
         self.transition_matrix_counts[0,1] = 1
         self.transition_matrix_counts[1,1] = 5 #self.kappa
+        self.transition_matrix_counts[0,1] = 1
+        self.transition_matrix_counts[1,1] = 1 #5 #self.kappa
         self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
-
+        
+        self.transition_matrix_log = np.zeros([self.TAU+1, self.max_context, self.max_context])
+        self.transition_matrix_log[0] = self.transition_matrix_counts.copy()
+        
         self.prior_rewards_counts = np.zeros([self.TAU+1, self.nr, self.ns, self.max_context])
         self.prior_rewards_counts[0,:,:,:self.K] = self.init_reward_counts # int_phi Cat(x|phi)Dir(phi|lambda_H) = Cat(x|lambda_H)  
         self.prior_rewards_counts[0,:,:,self.K] = self.lambda_H
@@ -794,7 +799,7 @@ class HDP_IMM():
             q_z = np.array([self.digamma_approximation(self.global_prior_counts[tau-1]), self.global_prior])
 
 
-        obs_messages = obs_messages # self.ln(q_z) + obs_messages #   q_z*obs_messages #
+        obs_messages = q_z*obs_messages # obs_messages # self.ln(q_z) + obs_messages #   
         
         
         q_c_joint = self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None]
@@ -869,7 +874,7 @@ class HDP_IMM():
             
 
                 self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
-                self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H # + np.random.uniform(size = self.lambda_H.shape)*0.3  
+                self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H  + np.random.uniform(size = self.lambda_H.shape)*0.3  
                 # add prior over new atom \theta_k
                 self.prior_policies_counts[tau,:,self.K] = self.h
 
@@ -879,8 +884,10 @@ class HDP_IMM():
                 self.transition_matrix_counts[self.K-1, self.K-1] += self.kappa
                 self.transition_matrix_counts[self.K,:self.K] = self.alpha
     
-                self.transition_matrix_counts[:self.K+1, self.K] = 1
-                self.transition_matrix_counts[self.K, self.K] =  5 #self.kappa
+                # self.transition_matrix_counts[:self.K+1, self.K] = 1
+                # self.transition_matrix_counts[self.K, self.K] =  5 #self.kappa
+                
+                self.transition_matrix_counts[np.arange(self.K+1),self.K] = 1
             ########## 3. update parameter estimates (M-step?) 
             
             # renormalizes probability after excluding new context possibility
@@ -918,6 +925,7 @@ class HDP_IMM():
             self.transition_matrix_counts = self.rho_l*self.transition_matrix_counts + q_c_joint + (1-self.rho_l)*alpha_init
             self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
             
+            self.transition_matrix_log[tau+1] = self.transition_matrix_counts.copy()
             ### 3.4 update context specific policy prior params q(\theta|epsilon)
 
             counts = self.prior_policies_counts[tau,:,:].copy()
@@ -2401,6 +2409,7 @@ class HDP_speaker_discretization():
         self.generative_model_obs = np.nan_to_num(self.generative_model_counts/self.generative_model_counts.sum(axis=0))
 
         self.opened_new_context = np.zeros(self.TAU//self.W)
+
 
     def update_beliefs_context(self,tau):
 
