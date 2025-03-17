@@ -46,11 +46,8 @@ alphas = np.array([16])       # local  prior context opening tendency
 kappas = np.array([43])       # self-transition bias
 
 
-gammas = np.array([850])      # global prior context opening tendency
-alphas = np.array([16])       # local  prior context opening tendency
-kappas = np.array([30])       # self-transition bias
 
-gammas = np.array([850])      # global prior context opening tendency
+gammas = np.array([500])      # global prior context opening tendency
 alphas = np.array([12])       # local  prior context opening tendency
 kappas = np.array([19])       # self-transition bias
 
