@@ -20,17 +20,17 @@ np.random.seed(8)
 
 
 # Task setup parameters
-na = 2
-nb = 2
+na = 3
+nb = na
 ns = nb+1
 no = ns
-nr = nb+1
+nr = 3
 nc = 1
 T = 2
 npi = na**(T-1)
 
-switch = 20
-repeats = 5
+switch = 100
+repeats = 2
 training_protocol = np.tile(np.arange(2).repeat(switch),repeats)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
@@ -51,7 +51,7 @@ alphas = np.array([16])       # local  prior context opening tendency
 kappas = np.array([30])       # self-transition bias
 
 gammas = np.array([850])      # global prior context opening tendency
-alphas = np.array([10])       # local  prior context opening tendency
+alphas = np.array([12])       # local  prior context opening tendency
 kappas = np.array([19])       # self-transition bias
 
 
@@ -62,7 +62,7 @@ rho_local = np.array([1])       # local prior counts forgetting rate
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 1 # how many times to run simulation with same params
+reps = 10 # how many times to run simulation with same params
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
 print(f"-----------------------------------")
@@ -85,14 +85,20 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         '''       define p(s_t|s_t-1, a_t-1)      '''
-        prior_states = np.array([0,0,1])
-        state_transition_matrix = np.array([[[1,0,1],
-                                             [0,1,0],
-                                             [0,0,0]],
 
-                                            [[1,0,0],
-                                             [0,1,1],
-                                             [0,0,0]]]).transpose(1,2,0)
+        prior_states = np.array([0]*nb + [1]) # np.array([0,0,1])
+        state_transition_matrix = np.array([np.eye(nb+1)]*nb).transpose([1,2,0])
+        state_transition_matrix[:,-1,:] = np.eye(nb+1)[:,:-1]
+        
+        
+        # prior_states = np.array([0,0,1])
+        # state_transition_matrix = np.array([[[1,0,1],
+        #                                      [0,1,0],
+        #                                      [0,0,0]],
+
+        #                                     [[1,0,0],
+        #                                      [0,1,1],
+        #                                      [0,0,0]]]).transpose(1,2,0)
 
 
         '''          define p(o_t|s_t)            '''
@@ -100,15 +106,25 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         '''           define p(r|s,c)             '''
-        lambda_H = np.array([[1,1,1],
-                             [1,1,1],
-                             [1,1,100]],dtype=float)
-
+        # lambda_H = np.array([[1,1,1],
+        #                      [1,1,1],
+        #                      [1,1,100]],dtype=float)
+        # counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
+        
+        lambda_H = np.ones([nr,ns])
+        lambda_H[-1,-1] = 100
         counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
+        
         bias = 10
-        counts_prior_rewards[:,:,0] = np.array([[bias, 1   , 1   ],
-                                                [1   , bias, 1   ],
-                                                [1   , 1   , 100]])
+        
+        init_counts = np.ones([nr,nb+1])
+        init_counts[0,0] = bias
+        init_counts[1,1:] = bias
+        init_counts[:,-1] = [1,1,100]
+        counts_prior_rewards[:,:,0] = init_counts
+        # counts_prior_rewards[:,:,0] = np.array([[bias, 1   , 1   ],
+        #                                         [1   , bias, 1   ],
+        #                                         [1   , 1   , 100]])
         
         # counts_prior_rewards[:,:,0] +=  np.random.uniform(low=0,high=1,size=(nr,ns))*0.3
 
@@ -139,17 +155,31 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         '''   define Env reward generation matrix '''
         p = 0.9
         q = 1 - p
-        reward_generation_matrix =  np.array([[[p, q, 0], 
-                                               [q, p, 0], 
-                                               [0, 0, 1]], 
+        
+        
+        bandits = np.arange(nb)
+        reward_generation_matrix = np.ones([nr,ns,len(bandits)])*q
+
+        for context,b in enumerate(bandits):
+            reward_generation_matrix[0,b,context] = p
+            reward_generation_matrix[1,np.arange(nb+1) != b,context] = p
+
+        reward_generation_matrix[-1,:] = 0
+        reward_generation_matrix[:,-1] = 0
+        reward_generation_matrix[-1,-1] = 1
+
+        
+        # reward_generation_matrix =  np.array([[[p, q, 0], 
+        #                                        [q, p, 0], 
+        #                                        [0, 0, 1]], 
                                             
-                                              [[q, p, 0], 
-                                               [p, q, 0], 
-                                               [0, 0, 1]]]).transpose(1,2,0)
+        #                                       [[q, p, 0], 
+        #                                        [p, q, 0], 
+        #                                        [0, 0, 1]]]).transpose(1,2,0)
 
 
         ######## Plot task setup
-        if True:
+        if False:
             '''Plot state transition matrix'''
             fig,axes = plt.subplots(1,2,figsize=(6,3))
             for ai, ax,title in zip([0,1], axes, ['$a_1$ = L1', '$a_2$ = L2']):
@@ -207,7 +237,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=True, # If set to True will print inferred agent beliefs up to trial 40?
+                    debug=False, # If set to True will print inferred agent beliefs up to trial 40?
                     rho_l= rho_l,
                     rho_g = rho_g,
                     max_context=max_context,
