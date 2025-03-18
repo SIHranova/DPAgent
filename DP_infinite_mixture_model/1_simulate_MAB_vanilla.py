@@ -17,11 +17,11 @@ from perception import HierarchicalPerception
 np.random.seed(11)
 
 # Task setup parameters
-na = 2
-nb = 2
+na = 5
+nb = 5
 ns = nb+1
 no = ns
-nr = nb+1
+nr =  3
 nc = 2
 T = 2
 npi = na**(T-1)

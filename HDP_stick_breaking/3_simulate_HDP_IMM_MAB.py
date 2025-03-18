@@ -29,9 +29,9 @@ nc = 1
 T = 2
 npi = na**(T-1)
 
-switch = 100
-repeats = 2
-training_protocol = np.tile(np.arange(2).repeat(switch),repeats)
+switch = 50
+repeats = 1
+training_protocol = np.tile(np.arange(3).repeat(switch),repeats)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
@@ -47,9 +47,9 @@ kappas = np.array([43])       # self-transition bias
 
 
 
-gammas = np.array([500])      # global prior context opening tendency
-alphas = np.array([12])       # local  prior context opening tendency
-kappas = np.array([19])       # self-transition bias
+gammas = np.array([1000])      # global prior context opening tendency
+alphas = np.array([16])       # local  prior context opening tendency
+kappas = np.array([30])       # self-transition bias
 
 
 
@@ -150,7 +150,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         '''   define Env reward generation matrix '''
-        p = 0.9
+        p = 0.9999
         q = 1 - p
         
         
@@ -294,20 +294,20 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             post_context = data.posterior_context[:,:,:data.K+1]
             actions = data.actions
 
-            unexpected_event = np.zeros(TAU)
+            # unexpected_event = np.zeros(TAU)
             
-            for trial, trial_type in enumerate(training_protocol):
-                if trial_type == 0:
-                    unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
-                else:
-                    unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
+            # for trial, trial_type in enumerate(training_protocol):
+            #     if trial_type == 0:
+            #         unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
+            #     else:
+            #         unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
 
-            inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
-            y_val_unexp_event = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
-            y_val_unexp_event[y_val_unexp_event == 0] = None
+            # inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
+            # y_val_unexp_event = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
+            # y_val_unexp_event[y_val_unexp_event == 0] = None
 
-            y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
-            y_val_action[y_val_action == 0] = None
+            # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
+            # y_val_action[y_val_action == 0] = None
 
             K = K = np.cumsum(agent.opened_new_context)+1 
             novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
@@ -320,8 +320,8 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
             # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
-            ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
-            ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
+            # ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
+            # ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
 
             ax.plot(novel_context[:,1], 'gray', label=f"novel context")
 

@@ -49,10 +49,10 @@ h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
-kappas = np.array([0.93 ])
+kappas = np.array([0.93])
 
 
-reps = 1  # how many times to run simulation with same params
+reps = 19  # how many times to run simulation with same params
 i = -1
 
 ###### Run simulations
@@ -121,7 +121,7 @@ for kappa in kappas:
 
 
         '''   define Env reward generation matrix '''
-        p = 0.9
+        p = 0.999999
         q = 1 - p  
         # reward_generation_matrix =  np.array([[[p, q, 0], 
         #                                        [q, p, 0], 
