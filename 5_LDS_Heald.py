@@ -66,23 +66,42 @@ for t in range(T):
 
 Y = X + np.random.normal(loc=0,scale=sigma_r,size=(T+1))
 
-plt.figure()
-plt.plot(np.arange(T+1),X.T)
-# plt.gca().set_prop_cycle(None)
-plt.plot(np.arange(T+1), Y.T, '-x')
-plt.title("True trajectory (solid) vs noisy observation (dashed)")
 
 ### 
+mu = np.zeros(T+1)
+P = np.zeros(T+1)
+Kalman_gain = np.zeros(T+1)
 
-x_hat_0 = 0
-P_0 = 4
+mu[0] = 0
+P[0] = 2
 
 for t in range(T+1):
-    ## Kalman_gain = P[t-1]/(P[t-1]+sigma_r**2)
+
+    if t==0:
+        prediction = mu[t]
+        variance = P[t]
+    else:
+        prediction = a*mu[t-1] + d
+        variance = a**2*P[t-1] + sigma_q**2
+
+
+    Kalman_gain[t] = variance/(variance+sigma_r**2)
+    mu[t] = prediction + Kalman_gain[t]*(Y[t] - prediction)
+
+    
+    # mu[t+1] = mu[t] + Kalman_gain[t+1](Y[t] - mu[t])
+    # P[t+1] = (1-Kalman_gain[t+1])*P[t]
+
     ## x_hat_n finish forumula based on book
     pass
 
-
+plt.figure()
+# plt.gca().set_prop_cycle(None)
+plt.plot(np.arange(T+1), Y.T, '-x', label="observation Y")
+plt.plot(np.arange(T+1), mu       , label="inferred X")
+plt.plot(np.arange(T+1), X.T      , label="true X")
+plt.legend()
+plt.title("True trajectory (solid) vs noisy observation (dashed)")
 
 
 # %%
