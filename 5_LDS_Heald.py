@@ -47,61 +47,69 @@ plt.xlim(x_lim)
 plt.title("Analytic distibution of x as t-> infty vs empirical")
 
 #%% Infer p(x_t|y_1,...,y_t) if all parameters known (E step)
-np.random.seed(1)
-a = 0.3                            # self retention rate
-d = 0.5                            # drift rate
-sigma_q = np.sqrt(0.1)                      # dynamics noise
-sigma_r = np.sqrt(0.05)                     # observations noise
+np.random.seed(42)
+# a = 0.3                            # self retention rate
+# d = 0.5                            # drift rate
+# sigma_q = np.sqrt(0.1)                      # dynamics noise
+# sigma_r = np.sqrt(0.05)                     # observations noise
+
+a = 0.9 # 0.3                            # self retention rate
+d = 0.5 # 0.5                            # drift rate
+sigma_q = 0.3# 0.1                      # dynamics noise
+sigma_r = 0.5
 
 x_0 = 1                            # initial position
 T = 100                            # how many time points to simulate 
 N  = 1                             # hom many simulations to run
 X = np.zeros(T+1)                  # simulation log
+Y = np.zeros(T+1)
 X[0] = x_0                         # initial position
 
 
 ### simulate system
+
 for t in range(T):
-    X[t+1] = a*X[t] + d + np.random.normal(loc=0, scale=sigma_q,size=N)
+    X[t+1] = a*X[t] + d + np.random.normal(loc=0, scale=sigma_q)
+    Y[t+1] = X[t+1] + np.random.normal(loc=0,scale=sigma_r)
 
-Y = X + np.random.normal(loc=0,scale=sigma_r,size=(T+1))
 
+### Kalman filter
 
-### 
-mu = np.zeros(T+1)
-P = np.zeros(T+1)
+x_filt = np.zeros(T+1)
+P_filt = np.zeros(T+1)
+x_pred = np.zeros(T+1)
+P_pred = np.zeros(T+1)
 Kalman_gain = np.zeros(T+1)
 
-mu[0] = 0
-P[0] = 2
+x_filt[0] = 0
+P_filt[0] = 1
 
 for t in range(T+1):
 
     if t==0:
-        prediction = mu[t]
-        variance = P[t]
+        x_pred[t] = x_filt[t]
+        P_pred[t] = P_filt[t]
     else:
-        prediction = a*mu[t-1] + d
-        variance = a**2*P[t-1] + sigma_q**2
+        x_pred[t] = a*x_filt[t-1] + d
+        P_pred[t] = a**2*P_filt[t-1] + sigma_q**2
 
 
-    Kalman_gain[t] = variance/(variance+sigma_r**2)
-    mu[t] = prediction + Kalman_gain[t]*(Y[t] - prediction)
+    Kalman_gain[t] = P_pred[t]/(P_pred[t]+sigma_r**2)
+    x_filt[t] = x_pred[t] + Kalman_gain[t]*(Y[t] - x_pred[t])
+    P_filt[t] = (1-Kalman_gain[t])*P_pred[t]
 
-    
-    # mu[t+1] = mu[t] + Kalman_gain[t+1](Y[t] - mu[t])
-    # P[t+1] = (1-Kalman_gain[t+1])*P[t]
-
-    ## x_hat_n finish forumula based on book
     pass
 
 plt.figure()
 # plt.gca().set_prop_cycle(None)
-plt.plot(np.arange(T+1), Y.T, '-x', label="observation Y")
-plt.plot(np.arange(T+1), mu       , label="inferred X")
-plt.plot(np.arange(T+1), X.T      , label="true X")
+plt.plot(np.arange(T+1), X.T, '--k', label="true X")
+plt.scatter(np.arange(T+1), Y.T, label="observation Y",s=10, alpha=0.6)
+plt.plot(np.arange(T+1), x_filt  , label="filtered X")
+# plt.title("True trajectory (solid) vs noisy observation (dashed)")
 plt.legend()
-plt.title("True trajectory (solid) vs noisy observation (dashed)")
+plt.ylim([-0.3,7])
+plt.xlim([-1,101])
+
 
 
 # %%
