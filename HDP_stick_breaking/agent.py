@@ -594,7 +594,7 @@ class HDP_IMM():
 
         self.beta_prime = np.zeros(self.max_context)                                      # Expectation of stick break beta'_k = gamma_k1/(gamma_k1+gamma_k2) 
         self.global_prior_counts = np.zeros([self.TAU+1, self.max_context])             # parameters gamma_1, gamma_2 of beta_k: p(beta'_k|gamma_k1, gamma_k2)
-        self.global_prior_counts[0,:2] = [1000,self.gamma]
+        self.global_prior_counts[0,:2] = [1, self.gamma] #[1000,self.gamma]
         self.global_prior = np.zeros(self.max_context)                                    # p(z|gamma_1, gamma_2)  = int_b p(z|b)p(b|gamma_1, gamma_2)
         self.global_prior[0] = 1
 
@@ -867,7 +867,7 @@ class HDP_IMM():
                 self.opened_new_context[tau+1] = True
 
                 # # add prior over new weight beta'_k
-                self.global_prior_counts[tau, self.K-1:self.K+1] = [1000,self.gamma]   # ??? is this the correct initialization? 
+                self.global_prior_counts[tau, self.K-1:self.K+1] = [1,self.gamma]   # ??? is this the correct initialization? 
             
 
                 self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
@@ -1015,7 +1015,6 @@ class HDP_IMM():
         self.actions[tau,t] = chosen_action
         
         return chosen_action
-
 
 class HDP():
 

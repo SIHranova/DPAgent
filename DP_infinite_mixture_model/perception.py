@@ -764,7 +764,7 @@ class HierarchicalPerception():
         self.prior_policies_counts[0,:] = counts_prior_policies[None,:,:]
         
         self.prior_rewards = np.zeros([self.TAU, self.T, self.nr, self.ns, self.nc])
-        self.prior_rewards[0,:2] = prior_rewards[None,:,:,:]
+        self.prior_rewards[0,:] = prior_rewards[None,:,:,:]
 
         self.prior_rewards_counts = np.zeros([self.TAU, self.T, self.nr, self.ns, self.nc])
         self.prior_rewards_counts[0,0] = counts_prior_rewards
@@ -865,8 +865,8 @@ class HierarchicalPerception():
         for c in range(self.nc):
             for pi, policy in enumerate(self.policies):
                 if pi in self.possible_policies_ind:
-                    for tp, u in enumerate(policy):
-                        self.update_states_messages(t,tau,pi,policy,c,reward,observation)
+                    # for tp, u in enumerate(policy):
+                    self.update_states_messages(t,tau,pi,policy,c,reward,observation)
                 else:
                     self.fwd_messages[:,:,pi,:] = 0
                     self.fwd_norms[:,pi,:] = 0

@@ -410,6 +410,32 @@ class Agent():
 
         if (t == self.T-1 and tau < self.TAU-1):
             self.perc.update_beliefs_prior_policies(t, tau, posterior_context)
+            
+        if tau < self.TAU - 1:
+            print(f"--------------------\ntau,t: {tau,t}")
+            print(f"action: {action}, observation: {observation}, reward: {reward}")
+
+
+            print(f"\nq(R|pi,c); policy likelihood:")
+            print(likelihood_policies.round(3))
+
+            print(f"q(pi|c) policy posterior:")
+            print(posterior_policies.round(3))
+            
+            print(f"\nposterior_context:")
+            print(posterior_context.round(3))
+
+
+            if t == self.T-1:
+
+                print(f"\nrewards counts:")
+                print(f"obs, reward: {observation, reward}")
+                for k in range(self.nc):
+                    print(f"\n{self.prior_rewards_counts[tau,t,:,:,k].round(3)}")
+                
+                print(f"prior_rewards")
+                for k in range(self.nc):
+                    print(self.prior_rewards[tau+1,t,:,:,k].round(3))
 
     def sample_action(self,t,tau):
 
