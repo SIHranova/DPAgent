@@ -83,7 +83,8 @@ class HibachiGrillPerception():
         self.gamma_context_counts[0,:] = counts_prior_context[None,:]
 
         self.posterior_context = np.zeros([self.TAU, self.T, self.nc])
-        
+        # self.posterior_context[0] = 1
+
         self.prior_bundle = np.zeros([self.TAU,self.T,2])
         self.prior_bundle[0,:] = (counts_prior_bundle/counts_prior_bundle.sum())[None,:]
         
@@ -91,7 +92,7 @@ class HibachiGrillPerception():
         self.epsilon_bundle_counts[0,:] = counts_prior_bundle[None,:]
 
         self.posterior_bundle = np.zeros([self.TAU, self.T, 2])
-
+        # self.posterior_bundle[0] = 1
 
     def ln(self, array):
         array[array==0] = 1e-20

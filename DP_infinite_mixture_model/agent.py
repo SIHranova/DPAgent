@@ -63,7 +63,9 @@ class HibachiGrillAgent():
         
         likelihood_policies, posterior_policies = self.perc.update_beliefs_policies(t,tau)
 
+        # if (t == self.T-1 and tau > 0 < self.TAU-1):
         if (t == self.T-1 and tau < self.TAU-1):
+            
             iter = 0
             atol = 0.0001
             max_iter = 50
@@ -76,6 +78,10 @@ class HibachiGrillAgent():
             # somewhere here it breaks, after the second iteration at tau=1?
             while(diff and iter < max_iter):
                 # print(iter)
+                print(tau,t,iter)
+                print(f"q_c{prev_q_c}")
+                print(f"q_w{prev_q_w}")
+
                 posterior_context = self.perc.update_beliefs_context(t, tau, likelihood_policies, posterior_policies, prev_q_w)
                 posterior_bundle = self.perc.update_beliefs_bundle(t, tau, posterior_context)
 
@@ -90,7 +96,9 @@ class HibachiGrillAgent():
 
                 prev_q_c = posterior_context.copy()
                 prev_q_w = posterior_bundle.copy()
-
+                
+                print(f"post q_c{prev_q_c}")
+                print(f"post q_w{prev_q_w}")
                 if tau == 0:
                     diff = False
                 
@@ -163,6 +171,7 @@ class HibachiGrillAgent():
                 print(self.perc.alpha_policy_counts[tau+1,t])
                 print(self.perc.prior_policies[tau+1,t].round(4))
 
+
     def sample_context(self,t,tau,posterior_context):
         return np.random.choice(np.arange(self.perc.nc), p=posterior_context) + 1 # shift since, this is a context counter variable
 
@@ -171,6 +180,12 @@ class HibachiGrillAgent():
 
         post_policies = self.perc.posterior_policies[tau,t]
         prior_context = self.perc.prior_context[tau,t]
+       
+        # if tau == 0:
+        #     prior_context = self.perc.prior_context[tau,t]
+        # else:
+        #     prior_context = np.nan_to_num(self.perc.posterior_context[tau-1,t])
+        
         post_policies = post_policies.dot(prior_context)
         # chosen_action = self.policies[np.argmax(post_policies)][t]
         
