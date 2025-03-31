@@ -58,7 +58,9 @@ class HibachiGrillAgent():
 
 
     def update_beliefs(self, t, tau, state, reward, action, observation):
-                
+
+        if tau == 1:
+            a = 0                
         self.perc.update_beliefs_states(t, tau, reward, action, observation)
         
         likelihood_policies, posterior_policies = self.perc.update_beliefs_policies(t,tau)
@@ -74,14 +76,14 @@ class HibachiGrillAgent():
             prev_q_c = np.ones(self.perc.k+1)
             prev_q_w = self.perc.prior_bundle[tau,0] #self.perc.digamma(self.perc.epsilon_bundle_counts[tau-1],0) # initialize to self.perc.digamma(kappa_counts)
             
-
-            # somewhere here it breaks, after the second iteration at tau=1?
+            print("------MF Iteration------")
             while(diff and iter < max_iter):
-                # print(iter)
-                print(tau,t,iter)
-                print(f"q_c{prev_q_c}")
-                print(f"q_w{prev_q_w}")
-
+                print(f"\niter: {tau,t,iter}")
+                print(f"     q_c{prev_q_c.round(5)}")
+                print(f"     q_w{prev_q_w.round(5)}")
+                
+                if tau == 2 and t == 1:
+                    a = 0
                 posterior_context = self.perc.update_beliefs_context(t, tau, likelihood_policies, posterior_policies, prev_q_w)
                 posterior_bundle = self.perc.update_beliefs_bundle(t, tau, posterior_context)
 
@@ -105,17 +107,17 @@ class HibachiGrillAgent():
                 iter += 1
                     
 
-            if tau == 0 or tau > 4:
+            # if tau == 0 or tau > 4:
 
-                c =  np.argmax(posterior_context) + 1 #self.sample_context(t,tau, posterior_context)
-                posterior_context = np.eye(self.perc.nc)[c-1]
+            c =  np.argmax(posterior_context) + 1 #self.sample_context(t,tau, posterior_context)
+            posterior_context = np.eye(self.perc.nc)[c-1]
 
-                if c > self.perc.k: 
-                    print( f"inferred new context at {tau}")
-                    self.perc.open_new_context()
-                    self.perc.k += 1
-                    self.perc.inferred_new_context[tau] = True
-                    # posterior_context = []
+            if c > self.perc.k: 
+                print( f"inferred new context at {tau}")
+                self.perc.open_new_context()
+                self.perc.k += 1
+                self.perc.inferred_new_context[tau] = True
+                # posterior_context = []
             
             
             # self.perc.update_beliefs_prior_bundle(t,tau,posterior_bundle)
@@ -129,47 +131,50 @@ class HibachiGrillAgent():
             print(f"action: {action}, observation: {observation}, reward: {reward}")
 
             print(f"\nq(r|pi,c); policy likelihood:")
-            print(likelihood_policies.round(4))
+            print(likelihood_policies.round(5))
 
             print(f"\nq(pi|c) policy posterior:")
-            print(posterior_policies.round(4))
-            
+            print(posterior_policies.round(5))
+
+            print(f"\nq_c (renormalised):")
+            print(self.perc.posterior_context[tau,t].round(5))
             
 
             if t == self.T-1:
                 if tau > 0:
-                    print(f"\nq(c):")
-                    print(posterior_context)
-                    print(self.perc.posterior_context[tau,t].round(3))
+                    print(f"\nchosen context: {c}, opened new: {self.perc.inferred_new_context[tau+1]}")
+                    # print(posterior_context)
                 
-                if self.perc.inferred_new_context[tau]:
-                    print("opened new context!")
-
-                print(f"\nprior context counts")
-                print(self.perc.gamma_context_counts[tau+1,0])
-
-                print(f"\ncontext predictive posterior")
-                print(self.perc.prior_context[tau+1,0])
+                # if self.perc.inferred_new_context[tau]:
+                #     print("opened new context!")
 
                 print(f"\nrewards counts:")
                 print(f"obs, reward: {observation, reward}")
                 for k in range(self.perc.k+1):
-                    print(f"\n{self.perc.beta_reward_counts[tau+1,t][:,:,k]}")
+                    print(f"\n{self.perc.beta_reward_counts[tau+1,t][:,:,k].round(5)}")
                 
                 print(f"\nprior_rewards")
                 for k in range(self.perc.k+1):
-                    print(self.perc.prior_rewards[tau+1,t][:,:,k].round(3))
+                    print(self.perc.prior_rewards[tau+1,t][:,:,k].round(5))
+                
+                print(f"\nglobal prior counts")
+                print(self.perc.gamma_context_counts[tau+1,0].round(5))
+
+                print(f"\nglobal prior")
+                print(self.perc.prior_context[tau+1,0].round(5))
+
+                
 
                 print(f"\nq(w)")
                 print(self.perc.epsilon_bundle_counts[tau+1,t])
-                print(self.perc.prior_bundle[tau+1,t].round(4))
+                print(self.perc.prior_bundle[tau+1,t].round(5))
 
 
 
                 print(f"\npolicy counts")
                 print(f"chosen policy:{action}")
                 print(self.perc.alpha_policy_counts[tau+1,t])
-                print(self.perc.prior_policies[tau+1,t].round(4))
+                print(self.perc.prior_policies[tau+1,t].round(5))
 
 
     def sample_context(self,t,tau,posterior_context):

@@ -94,6 +94,7 @@ class HibachiGrillPerception():
         self.posterior_bundle = np.zeros([self.TAU, self.T, 2])
         # self.posterior_bundle[0] = 1
 
+
     def ln(self, array):
         array[array==0] = 1e-20
         return np.log(array)
@@ -273,8 +274,8 @@ class HibachiGrillPerception():
     def update_beliefs_bundle(self,t,tau,posterior_context):
         
         # DEBUG INDEXES ARE SWITCHED?
-        q_w0 = (np.nan_to_num(self.posterior_context[tau-1,0])**posterior_context).prod()*self.prior_bundle[tau-1,0,0]
-        q_w1 = (self.prior_context[tau,0]**posterior_context).prod()*self.prior_bundle[tau-1,0,1]
+        q_w0 = (np.nan_to_num(self.posterior_context[tau-1,0])**posterior_context).prod()*self.prior_bundle[tau,0,0]
+        q_w1 = (self.prior_context[tau,0]**posterior_context).prod()*self.prior_bundle[tau,0,1]
         posterior_bundle = np.array([q_w0,q_w1])/np.array([q_w0,q_w1]).sum()
         
         if tau > 0:

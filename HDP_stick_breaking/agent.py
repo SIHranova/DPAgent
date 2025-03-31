@@ -96,11 +96,13 @@ class HibachiGrillProcess():
 
 
         ####
-        self.prior_bundle = np.zeros([self.TAU,2])
-        self.prior_bundle[0] = (self.counts_prior_bundle/self.counts_prior_bundle.sum())
+        self.prior_bundle = np.zeros([self.TAU+1,2])
+        self.prior_bundle[0] = np.nan
+        self.prior_bundle[1] = (self.counts_prior_bundle/self.counts_prior_bundle.sum())
         
-        self.prior_bundle_counts = np.zeros([self.TAU,2])
-        self.prior_bundle_counts[0] = self.counts_prior_bundle
+        self.prior_bundle_counts = np.zeros([self.TAU+1,2])
+        self.prior_bundle_counts[0] = np.nan
+        self.prior_bundle_counts[1] = self.counts_prior_bundle
 
         self.posterior_bundle = np.zeros([self.TAU, 2])
 
@@ -264,9 +266,17 @@ class HibachiGrillProcess():
             posterior_bundle = np.array([np.nan, np.nan])
             self.posterior_bundle[tau,:] = np.nan
         else:
-            q_w0 = (np.nan_to_num(self.posterior_context[tau-1,0])**posterior_context).prod()*self.prior_bundle[tau-1,0,0]
-            q_w1 = (self.prior_context[tau,0]**posterior_context).prod()*self.prior_bundle[tau-1,0,1]
-            posterior_bundle = np.array([q_w0,q_w1])/np.array([q_w0,q_w1]).sum()
+            # q_w0 = (np.nan_to_num(self.posterior_context[tau-1,-1])**posterior_context).prod()*self.prior_bundle[tau,0]
+            # # q_w0 = (np.nan_to_num(self.posterior_context[tau-1,0])**posterior_context).prod()*self.prior_bundle[tau-1,0,0]
+            # q_w1 = (self.global_prior**posterior_context).prod()*self.prior_bundle[tau,1]
+            # # q_w1 = (self.prior_context[tau,0]**posterior_context).prod()*self.prior_bundle[tau-1,0,1]
+            # posterior_bundle = np.array([q_w0,q_w1])/np.array([q_w0,q_w1]).sum()
+
+        
+            mask = np.tril(np.ones([self.max_context]))[self.K]
+            q_w0_ln = (posterior_context*np.log(self.posterior_context[tau-1,-1]))[:self.K+1].sum() + np.log(self.prior_bundle[tau,0])
+            q_w1_ln = (posterior_context*np.log(self.global_prior))[:self.K+1].sum() + np.log(self.prior_bundle[tau,1])
+            posterior_bundle = softmax([q_w0_ln, q_w1_ln])
             
             self.posterior_bundle[tau] = posterior_bundle
             
@@ -289,9 +299,9 @@ class HibachiGrillProcess():
         # construct \hat{p}(c_t) = int_{\eta} sum_{w_t} q(w_t)q(\eta) ln p(c_2|w_2,\eta')
         # DEBUG MAYBE NEED TO EXTEND BY ONE?
         if tau == 0:
-            prior_context = np.eye(self.max_context)[0]
+            prior_context = np.eye(self.max_context)[0] # self.global_prior_counts[tau] / self.global_prior_counts[tau].sum() 
         else:
-            prior_context = np.vstack([np.nan_to_num(self.posterior_context[tau-1,0]),self.global_prior]).T
+            prior_context = np.vstack([np.nan_to_num(self.posterior_context[tau-1,-1]),self.global_prior]).T
             prior_context = prior_context.dot(posterior_bundle)
 
         if t>0:
@@ -314,7 +324,7 @@ class HibachiGrillProcess():
 
         else:
             # DEBUG
-            posterior_context = self.ln(prior_context)
+            posterior_context = mask*self.ln(prior_context)
 
         posterior_context[:self.K+1] = softmax(posterior_context[:self.K+1])
         self.posterior_context[tau,t] = posterior_context
@@ -331,38 +341,47 @@ class HibachiGrillProcess():
         q_s = self.update_beliefs_states(t, tau, reward, action, observation)
         likelihood_policies, posterior_policies = self.update_beliefs_policies(t,tau)
 
-        if (t == self.T-1 and tau < self.TAU-1):
-            iter = 0
-            atol = 0.0001
-            max_iter = 50
-            diff = True
 
-            prev_q_c = np.ones(self.max_context)
-            prev_q_w = self.prior_bundle[tau,0] #self.perc.digamma(self.perc.epsilon_bundle_counts[tau-1],0) # initialize to self.perc.digamma(kappa_counts)
-            
+        ### cycle message updates, but how do i initialize correctly?
+        # if (t == self.T-1 and tau < self.TAU-1):
+        if (tau < self.TAU):
+            if t == self.T-1:
+                iter = 0
+                atol = 0.0001
+                max_iter = 20
+                diff = True
 
-            # somewhere here it breaks, after the second iteration at tau=1?
-            while(diff and iter < max_iter):
-                # print(iter)
-                posterior_context = self.update_beliefs_context(t, tau, likelihood_policies, posterior_policies, prev_q_w)
-                posterior_bundle = self.update_beliefs_bundle(t, tau, posterior_context)
-
-                # print("\n")
-                # print(tau,t,iter)
-                # print(posterior_context)
-                # print(posterior_bundle)
+                prev_q_c = np.ones(self.max_context)
+                prev_q_w = self.prior_bundle[tau] #self.perc.digamma(self.perc.epsilon_bundle_counts[tau-1],0) # initialize to self.perc.digamma(kappa_counts)
                 
-                diff_c = np.any(np.abs(posterior_context - prev_q_c) > atol)
-                diff_w = np.any(np.abs(posterior_bundle - prev_q_w) > atol)
-                diff = np.any([diff_c, diff_w])
+                # somewhere here it breaks, after the second iteration at tau=1?
+                print("------MF Iteration------")
+                while(diff and iter < max_iter):
+                    print(f"\niter: {tau,t,iter}")
+                    print(f"     q_c{prev_q_c.round(8)}")
+                    print(f"     q_w{prev_q_w.round(8)}")
+                    if tau == 2 and t == 1:
+                        a = 0
+                    posterior_context = self.update_beliefs_context(t, tau, likelihood_policies, posterior_policies, prev_q_w)
+                    posterior_bundle = self.update_beliefs_bundle(t, tau, posterior_context)
 
-                prev_q_c = posterior_context.copy()
-                prev_q_w = posterior_bundle.copy()
+                    # print("\n")
+                    # print(tau,t,iter)
+                    # print(posterior_context)
+                    # print(posterior_bundle)
+                    
+                    diff_c = np.any(np.abs(posterior_context - prev_q_c) > atol)
+                    diff_w = np.any(np.abs(np.nan_to_num(posterior_bundle) - np.nan_to_num(prev_q_w)) > atol)
+                    diff = np.any([diff_c, diff_w])
 
-                if tau == 0:
-                    diff = False
-                
-                iter += 1
+                    prev_q_c = posterior_context.copy()
+                    prev_q_w = posterior_bundle.copy()
+                    
+                    print(f"post q_c{prev_q_c.round(8)}")
+                    print(f"post q_w{prev_q_w.round(8)}")
+                    iter += 1
+            else:
+                posterior_context = self.update_beliefs_context(t, tau, likelihood_policies, posterior_policies, self.prior_bundle[tau])
 
 
 
@@ -384,7 +403,7 @@ class HibachiGrillProcess():
             self.context[tau] = current_context
             
             # if c_t = argmax q(c_t) comment out three lines below
-            q_c = np.eye(self.max_context)[current_context]
+            q_c = np.eye(self.max_context)[current_context] # posterior_context # 
 
 
             if current_context + 1 > self.K:
@@ -393,11 +412,11 @@ class HibachiGrillProcess():
                 self.opened_new_context[tau+1] = True
 
                 # # add prior over new weight beta'_k
-                self.global_prior_counts[tau, self.K-1:self.K+1] = [1,self.gamma]   # ??? is this the correct initialization? 
+                self.global_prior_counts[tau, self.K-1:self.K+1] = [1,self.gamma] 
             
 
                 self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
-                self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H  + np.random.uniform(size = self.lambda_H.shape)*0.3  
+                self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H + np.random.uniform(size = self.lambda_H.shape)*0.3  
                 # add prior over new atom \theta_k
                 self.prior_policies_counts[tau,:,self.K] = self.h
 
@@ -414,21 +433,31 @@ class HibachiGrillProcess():
             states = np.argmax(q_s[:,:,chosen_pol, current_context],axis=0)
             
             ### 3.1 update global context prior params q(beta'|gamma) and construct new q(z_t)
+            counts  = self.global_prior_counts[tau] + q_c
+            counts[counts > 5] = 5
+            self.global_prior_counts[tau+1] = counts
 
-            
-            self.global_prior_counts[tau+1] = self.global_prior_counts[tau] + q_c
             self.global_prior = self.digamma_approximation(self.global_prior_counts[tau+1])
 
             ### 3.2 update reward probability params phi q(phi|lambda)
-
             self.prior_rewards_counts[tau+1] = self.prior_rewards_counts[tau].copy()
             for obs, state in zip(self.observations[tau,1:], states[1:]):
                 self.prior_rewards_counts[tau+1, reward, state, :self.K] += q_c[:self.K]
-            self.prior_rewards[tau+1] = np.nan_to_num(self.prior_rewards_counts[tau+1]/self.prior_rewards_counts[tau+1].sum(axis=0)[None,:,:])
+            
+            if self.approx_pred_rew:
+                self.prior_rewards[tau+1] = self.digamma_approximation(self.prior_rewards_counts[tau+1]) # np.nan_to_num(self.prior_rewards_counts[tau+1]/self.prior_rewards_counts[tau+1].sum(axis=0)[None,:,:])
+            else:
+                self.prior_rewards[tau+1] = np.nan_to_num(self.prior_rewards_counts[tau+1]/self.prior_rewards_counts[tau+1].sum(axis=0)[None,:,:])
+
+            ### 3.3 update params kappa of stimulus bundle variable omega q(omega|kappa)q(kappa)    
+            if tau > 0: 
+                counts = self.prior_bundle_counts[tau].copy()
+                counts += posterior_bundle
+                self.prior_bundle_counts[tau+1] = counts
+                self.prior_bundle[tau+1] = self.digamma_approximation(counts)[None,:] 
 
 
             ### 3.4 update context specific policy prior params q(\theta|prior)
-
             counts = self.prior_policies_counts[tau,:,:].copy()
             counts[chosen_pol,:self.K] += q_c[:self.K]
             self.prior_policies_counts[tau+1] = counts
@@ -438,7 +467,7 @@ class HibachiGrillProcess():
 
         ######### Print inferred beliefs
         if self.debug:
-            if tau < 1000:
+            if tau < 40:
                 if self.opened_new_context[tau+1]:
                     self.K -= 1
                 print(f"--------------------\ntau,t: {tau,t}")
@@ -446,13 +475,13 @@ class HibachiGrillProcess():
 
 
                 print(f"\nq(R|pi,c); policy likelihood:")
-                print(likelihood_policies.round(3))
+                print(likelihood_policies.round(5))
 
                 print(f"q(pi|c) policy posterior:")
-                print(posterior_policies.round(3))
+                print(posterior_policies.round(5))
                 
                 print(f"\nq_c (renormalised):")
-                print(q_c.round(3))
+                print(posterior_context.round(5))
 
                 if t == self.T-1:
                     print(f"\nchosen context: {current_context}, opened new: {self.opened_new_context[tau+1]}")
@@ -464,25 +493,23 @@ class HibachiGrillProcess():
                     
                     print(f"prior_rewards")
                     for k in range(self.K+1):
-                        print(self.prior_rewards[tau+1,:,:,k].round(3))
+                        print(self.prior_rewards[tau+1,:,:,k].round(5))
 
                     print(f"\nglobal prior counts")
                     print(self.global_prior_counts[tau+1].T)
 
                     print(f"\nglobal prior")
                     print(self.global_prior.round(5))
-
-
-                    print(f"\ntransition matrix")
-                    print(f"contexts:{self.context[tau-1], self.context[tau]}")
-                    print(self.transition_matrix_counts)
-                    print(self.transition_matrix.round(3))
                     
+                    print(f"\nq(w)")
+                    print(self.prior_bundle_counts[tau+1].round(5))
+                    print(self.prior_bundle[tau+1].round(5))
 
-                    # print(f"\npolicy counts")
-                    # print(f"chosen policy:{chosen_pol}")
-                    # print(self.prior_policies_counts[tau+1])
-                    # print(self.prior_policies[tau+1].round(3))
+
+                    print(f"\npolicy counts")
+                    print(f"chosen policy:{chosen_pol}")
+                    print(self.prior_policies_counts[tau+1])
+                    print(self.prior_policies[tau+1].round(5))
                 
                 if self.opened_new_context[tau+1]:
                     self.K = self.K+1
@@ -497,6 +524,8 @@ class HibachiGrillProcess():
             post_cont = np.eye(self.max_context)[0]
         else:
             post_cont = self.posterior_context[tau-1,t]
+            # post_cont = self.global_prior
+            
         post_policies = post_policies.dot(post_cont)
         # chosen_action = self.policies[np.argmax(post_policies)][t]
         

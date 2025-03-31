@@ -14,7 +14,7 @@ from perception import HibachiGrillPerception
 
 
 #PP
-np.random.seed(324243242)
+np.random.seed(1)
 
 # Task setup parameters
 na = 2
@@ -37,9 +37,9 @@ approx_pred_rew = True
 
 # gamma = 5
 
-for gamma in np.arange(2.8,3.5,0.1):
+for reps in range(10):
 
-  # gamma = 3.2
+  gamma = 2.5
 
 
   '''           define policies            '''
@@ -71,6 +71,7 @@ for gamma in np.arange(2.8,3.5,0.1):
   # counts_prior_rewards[:,:,0] = np.array([[20,2,1],
   #                                         [2,20,1],
   #                                         [1,1,100]])
+
 
   if approx_pred_rew:
     prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
@@ -214,8 +215,10 @@ for gamma in np.arange(2.8,3.5,0.1):
   if data.nc > 2:
     ### context plot
     plt.figure()
+    plt.grid()
     # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
     # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
+    plt.plot(data.posterior_bundle[:,0,0],'-.k', alpha=0.5)
     for c in range(data.nc):
       #plt.scatter(np.arange(TAU), post_context[:,0,c], label = f'posterior $c$={c}')
       plt.plot(post_context[:,0,c], label=f"context {c}")
