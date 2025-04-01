@@ -37,7 +37,7 @@ approx_pred_rew = True
 
 # gamma = 5
 
-for reps in range(10):
+for reps in range(1):
 
   gamma = 2.5
 

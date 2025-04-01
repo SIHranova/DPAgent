@@ -11,16 +11,15 @@ from itertools import product
 
 from misc import *
 from environment import MultiArmedBandit
-from agent import HDP,HDP_IMM 
+from agent import HDP,HDP_IMM, HDP_nonparam
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
-np.random.seed(8)
+np.random.seed(1)
 
 
 
-# Task setup parameters
-na = 3
+na = 4
 nb = na
 ns = nb+1
 no = ns
@@ -29,9 +28,19 @@ nc = 1
 T = 2
 npi = na**(T-1)
 
-switch = 50
-repeats = 10
-training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
+
+# na = 2
+# nb = 2
+# ns = nb+1
+# no = ns
+# nr = nb+1
+# nc = 1
+# T = 2
+# npi = na**(T-1)
+
+switch = 100
+reps = 4
+training_protocol = np.tile(np.arange(nb).repeat(switch), reps)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
@@ -39,41 +48,15 @@ TAU = training_protocol.size
 h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
-max_context = 6
 
-gammas = np.array([0.2])      # global prior context opening tendency
-alphas = np.array([16])       # local  prior context opening tendency
-kappas = np.array([43])       # self-transition bias
+kappas = np.array([0.95])
 
 
-
-gammas = np.array([100])     # global prior context opening tendency
-alphas = np.array([16])       # local  prior context opening tendency
-kappas = np.array([30])       # self-transition bias
-
-# gammas = np.array([3])
-# alphas = np.array([2])
-# kappas = np.array([4])
-
-
-
-
-rho_global = np.array([1])     # global prior counts forgetting rate
-rho_local = np.array([1])       # local prior counts forgetting rate 
-
-
-sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 20  # how many times to run simulation with same params
-
-sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,8])
-
-print(f"-----------------------------------")
-print(f"{alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps} simulations to run")
+reps = 10  # how many times to run simulation with same params
 i = -1
 
-
 ###### Run simulations
-for alpha, gamma, kappa, rho_l, rho_g in sim_params:
+for kappa in kappas:
     
     for rep in range(reps):
 
@@ -87,13 +70,10 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         '''       define p(s_t|s_t-1, a_t-1)      '''
-
         prior_states = np.array([0]*nb + [1]) # np.array([0,0,1])
         state_transition_matrix = np.array([np.eye(nb+1)]*nb).transpose([1,2,0])
         state_transition_matrix[:,-1,:] = np.eye(nb+1)[:,:-1]
         
-        
-        # prior_states = np.array([0,0,1])
         # state_transition_matrix = np.array([[[1,0,1],
         #                                      [0,1,0],
         #                                      [0,0,0]],
@@ -111,29 +91,14 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         # lambda_H = np.array([[1,1,1],
         #                      [1,1,1],
         #                      [1,1,100]],dtype=float)
-        # counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
-        
+
         lambda_H = np.ones([nr,ns])
         lambda_H[-1,-1] = 100
         counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
-        
-        bias = 5
-        
-        init_counts = np.ones([nr,nb+1])
-        init_counts[0,0] = bias
-        init_counts[1,1:] = bias
-        init_counts[:,-1] = [1,1,100]
-        counts_prior_rewards[:,:,0] = init_counts
-        
-        # counts_prior_rewards[:,:,0] = np.array([[bias, 1   , 1   ],
-        #                                         [1   , bias, 1   ],
-        #                                         [1   , 1   , 100]])
-        
-        # counts_prior_rewards[:,:,0] +=  np.random.uniform(low=0,high=1,size=(nr,ns))*0.3
-
-        counts_prior_rewards[:,:,0] += np.random.uniform(low=0, high=1, size=(nr,ns))
 
 
+
+        counts_prior_rewards[:,:,0] += np.random.uniform(low=0, high=1, size=(nr, ns))
 
         if approx_pred_rew:
             prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
@@ -152,14 +117,20 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         '''       define dummy utility RV p(R=1) '''
-        utility = np.array([0.99, 0.005,0.005]) # np.array([1/nr]*3) #
+        utility = np.array([0.99, 0.005,0.005])
 
 
         '''   define Env reward generation matrix '''
         p = 0.9
-        q = 1 - p
-        
-        
+        q = 1 - p  
+        # reward_generation_matrix =  np.array([[[p, q, 0], 
+        #                                        [q, p, 0], 
+        #                                        [0, 0, 1]], 
+                                            
+        #                                       [[q, p, 0], 
+        #                                        [p, q, 0], 
+        #                                        [0, 0, 1]]]).transpose(1,2,0)
+
         bandits = np.arange(nb)
         reward_generation_matrix = np.ones([nr,ns,len(bandits)])*q
 
@@ -170,16 +141,6 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         reward_generation_matrix[-1,:] = 0
         reward_generation_matrix[:,-1] = 0
         reward_generation_matrix[-1,-1] = 1
-
-        
-        # reward_generation_matrix =  np.array([[[p, q, 0], 
-        #                                        [q, p, 0], 
-        #                                        [0, 0, 1]], 
-                                            
-        #                                       [[q, p, 0], 
-        #                                        [p, q, 0], 
-        #                                        [0, 0, 1]]]).transpose(1,2,0)
-
 
         ######## Plot task setup
         if False:
@@ -220,17 +181,17 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                             no=no)
 
 
-        agent = HDP_IMM(lambda_H = lambda_H,
+        agent = HDP_nonparam(lambda_H = lambda_H,
                     TAU=TAU,
                     T=T,
-                    gamma=gamma,
-                    alpha=alpha,
+                    # gamma=gamma,
+                    # alpha=alpha,
                     kappa=kappa,
                     state_transition_matrix = state_transition_matrix,
                     observation_generation_matrix = observation_generation_matrix,
                     utility = utility,
                     policies = policies,
-                    # prior_rewards = prior_rewards,
+                    prior_rewards = prior_rewards,
                     counts_prior_rewards = counts_prior_rewards,
                     prior_policies = prior_policies,
                     counts_prior_policies = counts_prior_policies,
@@ -241,13 +202,10 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_rew = approx_pred_rew,
                     h = h,
                     debug=False, # If set to True will print inferred agent beliefs up to trial 40?
-                    rho_l= rho_l,
-                    rho_g = rho_g,
-                    max_context=max_context,
-                    K = nc)
-
-
-
+                    # rho_l= rho_l,
+                    # rho_g = rho_g,
+                    )
+        
         world = World(agent, env)
         world.simulate_experiment()
 
@@ -278,29 +236,17 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                 labels[distribution] = np.argmin(divergences[distribution])
                 true_divergence[distribution] = divergences[distribution, np.argmin(divergences[distribution])]
             ###
-            best_fit = 0
-            best_label = []        
-            for perm in range(100):    
-                l = np.random.permutation(agent.K)        
-                labels = l[agent.context]
-                fit = (labels == training_protocol).sum()/TAU
-                
-                if fit > best_fit:
-                    best_fit = fit
-                    best_label = l
-        
-            print(f"best label assignment: {best_label}")
-           
+
             plots = [Q_rew[:,:,k] for k in range(agent.K)]
             titles = [None for k in range(agent.K)]
-            titles[0] = f"l: {best_label}, alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
+            # titles[0] = f"alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
 
             file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
 
             ### plots inferred reward distributions for each context
 
             plot_heatmap(data=plots, file_title=file_title, title=titles)
-            plot_heatmap(agent.transition_matrix.round(2))
+
 
 
             ### CONTEXT PLOT
@@ -327,14 +273,19 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
             # y_val_action[y_val_action == 0] = None
 
+            ###
             K = K = np.cumsum(agent.opened_new_context)+1 
             novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
             post_context[np.arange(TAU),:,K[:-1]] = 0
+
+
+
             fig, ax = plt.subplots(1, figsize=(5,3))
 
             ax.set_ylim((0,1.05))
             plt.grid(axis="x")
             plt.grid(axis="y")
+
             ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
             # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
@@ -344,22 +295,16 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
             for c in range(data.K):
                 ax.plot(post_context[:,1,c],label=f"context {c+1}")
-                ax.legend()
-                
+            
             ax.plot(novel_context[:,1], 'gray', label=f"novel context")
-            ax.set_title(fr"$\alpha=${alpha}")
-
             new_context = (data.opened_new_context == True).nonzero()
 
             for ind in new_context:
                 ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
-            ax.set_title(f"Posterior Context Iteration: {rep},  correct: {best_fit.round(3)}%")
-            ax.legend(loc="lower right", framealpha=1)
-
-
-            # ### messages plot
-            # q_z = np.array([agent.digamma_approximation(counts[trial]) for trial  in range(TAU)])
-
+            ax.set_title(f"Posterior Context Iteration: {rep}")
+            fig.legend(bbox_to_anchor=[1.25,0.7])
+            
+            # ax.legend(loc="lower right", framealpha=1)
 
             # plt.savefig("test.png",dpi=300)
 
@@ -429,48 +374,15 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             # print(agent.K)
             # for k in range(agent.K):
             #     print(data.prior_rewards[-1,:,:,k].round(3),'\n')
-            
-            
-            ##### messages plot?
-            # counts = agent.global_prior_counts.copy()
-            # q_z = np.array([agent.digamma_approximation(counts[trial]) for trial  in range(TAU)])
-            # obs_messages = np.nan_to_num(agent.context_likelihood)
+        # else:
+        #     true_divergence = np.array([1000,1000]) # just set to somethin high
+        # sim_data[i] = np.array([rep, alpha, gamma, kappa, rho_l, true_divergence.mean().round(5), agent.K])
 
+        # if i%500 == 0:
+        #     print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho_l,6)}, K: {agent.K}")
 
-            # result = q_z*obs_messages
-            # result[result == 0] = -1000
-            # result = np.argmax((result),axis=1)
-
-            # q_z[q_z == 0 ] = -1000
-            # z = np.argmax(q_z,axis=1)
-            # obs_messages[obs_messages==0] = -1000
-            # obs = np.argmax(obs_messages,axis=1)
-            # q_z[q_z == -1000 ] = None
-            # obs_messages[obs_messages == -1000] = 0
-
-            # nc_plot = 6
-            # plt.figure()
-            # plt.grid()
-            # ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-            # plt.plot(np.arange(TAU-1), obs_messages[1:,:nc_plot],label=[f"obs {c}" for c in range(nc_plot)])
-            # plt.plot(np.arange(TAU-1), (q_z*obs_messages)[1:,:nc_plot],'-x',label = [f"q_z*obs {c}" for c in np.arange(nc_plot)])
-            # plt.plot(np.arange(TAU-1), q_z[1:,:nc_plot],'--', label = [f"q_z {c}" for c in np.arange(nc_plot)])
-            # # plt.ylim([-8,1.5])
-            # plt.legend(bbox_to_anchor=[1,0.8])
-
-
-            # plt.show()
-        else:
-            best_fit = 0
-            true_divergence = np.array([1000,1000]) # just set to somethin high
-        
-        sim_data[i] = np.array([rep, alpha, gamma, kappa, rho_l, true_divergence.mean().round(5), agent.K, best_fit])
-
-        if i%500 == 0:
-            print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho_l,6)}, K: {agent.K}")
 
 # plt.show()
-
         
 
 #%% Analyse all sims
@@ -545,7 +457,6 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 # plt.show()
 
 # # #%%
-
 
 
 

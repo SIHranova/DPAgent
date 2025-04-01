@@ -457,6 +457,7 @@ class Agent():
                 for k in range(self.nc):
                     print(self.prior_rewards[tau+1,t,:,:,k].round(3))
 
+
     def sample_action(self,t,tau):
 
         post_policies = self.posterior_policies[tau,t]
