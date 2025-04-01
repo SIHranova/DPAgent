@@ -36,8 +36,8 @@ plot_context = True
 plot_choice = False
 debug = False
 
-switch = 20    
-training_protocol = np.tile(np.arange(nb).repeat(switch),7)
+switch = 100    
+training_protocol = np.tile(np.arange(nb).repeat(switch),2)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
@@ -54,7 +54,7 @@ rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 
 
 gammas = np.array([0.2])       # global prior context opening tendency
-alphas = np.array([20])        # local  prior context opening tendency
+alphas = np.array([16])        # local  prior context opening tendency
 kappas = np.array([30])        # self-transition bias
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 

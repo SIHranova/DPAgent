@@ -437,7 +437,7 @@ class HibachiGrillProcess():
             
             ### 3.1 update global context prior params q(beta'|gamma) and construct new q(z_t)
             counts  = self.global_prior_counts[tau] + q_c
-            counts[counts > 5] = 5
+            counts[counts > 10] = 10
             self.global_prior_counts[tau+1] = counts
 
             self.global_prior = self.digamma_approximation(self.global_prior_counts[tau+1])
@@ -2086,7 +2086,7 @@ class HDP():
             gamma_init[:self.K,:] = np.array([[1,self.gamma]])
             
             self.global_prior_counts[tau+1] = self.rho_g*self.global_prior_counts[tau] + counts + (1-self.rho_g)*gamma_init
-            self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1], approx=False)
+            self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1])
 
             ### 3.2 update reward probability params phi q(phi|lambda)
 
@@ -2119,7 +2119,7 @@ class HDP():
 
             self.transition_matrix_counts = self.rho_l*self.transition_matrix_counts + counts + (1-self.rho_l)*alpha_init
 
-            self.transition_matrix = self.construct_G_j(approx=False)
+            self.transition_matrix = self.construct_G_j()
             
             ### 3.4 update context specific policy prior params q(\theta|epsilon)
 
@@ -2201,7 +2201,7 @@ class HDP():
                     self.K = self.K+1
 
 
-    def construct_G_0(self, global_prior_counts, approx=False):
+    def construct_G_0(self, global_prior_counts, approx=True):
 
         global_prior = np.zeros(self.max_context)
         
@@ -2235,21 +2235,43 @@ class HDP():
         return global_prior
 
 
-    def construct_G_j(self, approx=False):
+    def construct_G_j(self, approx=True):
         
-        transition_matrix = np.zeros([self.max_context, self.max_context])
-        # initialize 2K+1 pi_jk with prior probability (1,alpha)
 
-        pi_prime = np.nan_to_num(self.transition_matrix_counts / self.transition_matrix_counts.sum(axis=-1)[:,:,None]) # expected pi_jk'
-        # construct q(c_t|c_t-1,alpha) = pi'_jk * prod_l=1^k-1 (1-pi'_jl), where pi'_jk = alpha_jk1/(alpha_jk2)
-        pi_prime_l = np.insert(np.cumprod(pi_prime[:,:,1], axis=0), 0, 1, axis=0)
-        pi_prime_k = np.insert(pi_prime[:,:,0], self.K, 1, axis=0)
+        if approx:
+            if self.K == 3:
+                a = 0
+            transition_matrix = np.zeros([self.max_context, self.max_context])
+            # initialize 2K+1 pi_jk with prior probability (1,alpha)
 
-        for k in range(self.K+1):
-            transition_matrix[k] = pi_prime_k[k,:]*pi_prime_l[k,:]
+            pi_prime = np.nan_to_num(self.transition_matrix_counts / self.transition_matrix_counts.sum(axis=-1)[:,:,None]) # expected pi_jk'
+            # construct q(c_t|c_t-1,alpha) = pi'_jk * prod_l=1^k-1 (1-pi'_jl), where pi'_jk = alpha_jk1/(alpha_jk2)
+            pi_prime_l = np.insert(np.cumprod(pi_prime[:,:,1], axis=0), 0, 1, axis=0)
+            pi_prime_k = np.insert(pi_prime[:,:,0], self.K, 1, axis=0)
 
-        assert np.all(np.isclose(transition_matrix.sum(axis=0)[:self.K],1))
+            for k in range(self.K+1):
+                transition_matrix[k] = pi_prime_k[k,:]*pi_prime_l[k,:]
 
+            assert np.all(np.isclose(transition_matrix.sum(axis=0)[:self.K],1))
+        else:            
+            transition_matrix = np.zeros([self.max_context, self.max_context])
+            # initialize 2K+1 pi_jk with prior probability (1,alpha)
+
+            pi_prime = digamma(self.transition_matrix_counts) # expected pi_jk'
+            # construct q(c_t|c_t-1,alpha) = pi'_jk * prod_l=1^k-1 (1-pi'_jl), where pi'_jk = alpha_jk1/(alpha_jk2)
+            pi_prime_l = np.insert(np.cumsum(pi_prime[:,:,1], axis=0), 0, 0, axis=0)
+            pi_prime_k = np.insert(pi_prime[:,:,0], self.K, 0, axis=0)
+
+            norm = np.cumsum(digamma(self.transition_matrix_counts.sum(axis=-1)),axis=0)
+            norm = np.insert(norm, self.K, norm[self.K-1], axis=0)
+            
+            for k in range(self.K+1):
+                transition_matrix[k] = pi_prime_k[k,:] + pi_prime_l[k,:] - norm[k,:]
+
+            transition_matrix[:self.K+1,:self.K] = softmax(transition_matrix[:self.K+1,:self.K],axis=0)
+
+            assert np.all(np.isclose(transition_matrix.sum(axis=0)[:self.K],1))
+            
         return transition_matrix
 
 
@@ -2750,7 +2772,7 @@ class HDP_cycling():
             gamma_init[:self.K,:] = np.array([[1,self.gamma]])
             
             self.global_prior_counts[tau+1] = self.rho_g*self.global_prior_counts[tau] + counts + (1-self.rho_g)*gamma_init
-            self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1], approx=False)
+            self.global_prior = self.construct_G_0(self.global_prior_counts[tau+1])
 
             # DEBUG PRINTING
             # print(f"\ntau: {tau}, K: {self.K}")

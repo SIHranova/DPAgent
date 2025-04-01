@@ -31,7 +31,7 @@ nc = 1
 T = 2
 npi = na**(T-1)
 switch = 20
-reps = 1
+reps = 5
 # training_protocol = np.tile(np.arange(nb,-1,-1).repeat(switch),reps)
 training_protocol = np.tile(np.arange(nb).repeat(switch),reps)
 
@@ -43,11 +43,11 @@ h = 1000
 approx_pred_pol = True
 approx_pred_rew = True
 
-gammas = np.array([2]) #np.arange(1,4,0.1)#      # global prior context opening tendency
+gammas = np.array([5]) #np.arange(1,4,0.1)#      # global prior context opening tendency
 rho_global = np.array([1])     # global prior counts forgetting rate
 
 sim_params = product(gammas, rho_global)
-reps = 1  # how many times to run simulation with same params
+reps = 5  # how many times to run simulation with same params
 
 # sim_data = np.zeros([gammas.size*rho_global.size*reps,8])
 
@@ -87,7 +87,7 @@ for gamma, rho_g in sim_params:
         lambda_H[-1,-1] = 100
         counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
         
-        bias = 100
+        bias = 10
         
         init_counts = np.ones([nr,nb+1])
         init_counts[0,0] = bias
