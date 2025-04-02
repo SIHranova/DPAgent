@@ -1148,9 +1148,9 @@ class HDP_IMM():
         self.transition_matrix_counts[0,0] = self.kappa + 1
         self.transition_matrix_counts[1,0] = self.alpha
         self.transition_matrix_counts[0,1] = 1
-        self.transition_matrix_counts[1,1] = 5 #self.kappa
-        self.transition_matrix_counts[0,1] = 1
-        self.transition_matrix_counts[1,1] = 1 #5 #self.kappa
+        self.transition_matrix_counts[1,1] = 10 #self.kappa
+        # self.transition_matrix_counts[0,1] = 1
+        # self.transition_matrix_counts[1,1] = 1 #5 #self.kappa
         self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
         
         self.transition_matrix_log = np.zeros([self.TAU+1, self.max_context, self.max_context])
@@ -1188,16 +1188,17 @@ class HDP_IMM():
         self.actions = np.zeros([self.TAU, self.T])
         self.opened_new_context = np.zeros(self.TAU+1,dtype=bool)
 
-        print("---------   INITIAL BELIEFS -------------")
-        print(f"\n{self.K} contexts")
-        print(f"\nglobal prior: {self.global_prior_counts[0].round(3)}")
-        
-        print(f"\ntransition matrix")
-        print(self.transition_matrix_counts.round(3))
+        if self.debug:
+            print("---------   INITIAL BELIEFS -------------")
+            print(f"\n{self.K} contexts")
+            print(f"\nglobal prior: {self.global_prior_counts[0].round(3)}")
+            
+            print(f"\ntransition matrix")
+            print(self.transition_matrix_counts.round(3))
 
-        print(f"\nprior rewards")
-        for k in range(self.K+1):
-            print(self.prior_rewards_counts[0,:,:,k].round(3))
+            print(f"\nprior rewards")
+            for k in range(self.K+1):
+                print(self.prior_rewards_counts[0,:,:,k].round(3))
 
 
     def ln(self, array):
@@ -1428,9 +1429,9 @@ class HDP_IMM():
                 self.transition_matrix_counts[self.K,:self.K] = self.alpha
     
                 # self.transition_matrix_counts[:self.K+1, self.K] = 1
-                # self.transition_matrix_counts[self.K, self.K] =  5 #self.kappa
                 
                 self.transition_matrix_counts[np.arange(self.K+1),self.K] = 1
+                self.transition_matrix_counts[self.K, self.K] =  10 #self.kappa
             ########## 3. update parameter estimates (M-step?) 
             
             # renormalizes probability after excluding new context possibility

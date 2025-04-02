@@ -14,10 +14,10 @@ from perception import HierarchicalPerception
 
 
 np.random.seed(11)
-for rep in range(1):
+for rep in range(10):
 
   # Task setup parameters
-  na = 4
+  na = 5
   nb = na
   ns = nb+1
   no = ns
@@ -25,7 +25,7 @@ for rep in range(1):
   nc = 6
   T = 2
   npi = na**(T-1)
-  training_protocol = np.tile(np.arange(3).repeat(100),1)
+  training_protocol = np.tile(np.arange(5).repeat(100),2)
   # training_protocol = np.concatenate([training_protocol, [3]*100])
   
   # training_protocol = np.repeat(np.arange(2),100)
@@ -226,29 +226,32 @@ for rep in range(1):
   plt.ylim([0,1])
   plt.legend()
 
+  Q_rew = [agent.perc.prior_rewards[-1,0][:,:,k] for k in range(agent.nc)]
+  plot_heatmap(Q_rew)
 
-  plt.figure()
-  plt.grid()
 
-  for c in range(nc):
-    for pi in range(na):
-      print(pi,c)
-      plt.plot(np.arange(TAU), like_policies[:,0,pi,c],   label = f'like_pol_{pi}_cont_{c}')
-      # plt.plot(np.arange(TAU), like_policies[:,0,pi,nc],   label = 'like_pol_0_cont_1')
-      # plt.plot(np.arange(TAU), like_policies[:,0,pi,nc],   label = 'like_pol_1_cont_0')
-      # plt.plot(np.arange(TAU), like_policies[:,0,pi,nc],   label = 'like_pol_1_cont_1')
-  plt.ylim([0,1])
-  plt.legend(bbox_to_anchor=[1,0.8])
+  # plt.figure()
+  # plt.grid()
 
-  like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
-  plt.figure()
-  plt.grid()
-  # plt.vlines(100,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-  for pi in range(na):
-    plt.plot(np.arange(TAU), prior_policies[:,0,pi], label = 'prior $\pi$')
-    plt.plot(np.arange(TAU), like_policies[:,0,pi] , "-s", markersize=5, label = 'like $\pi$')
-    plt.plot(np.arange(TAU), post_policies[:,0,pi], "-x", markersize=5, label = 'posterior $\pi$')
-  plt.legend(bbox_to_anchor=[1,0.8])
+  # for c in range(nc):
+  #   for pi in range(na):
+  #     print(pi,c)
+  #     plt.plot(np.arange(TAU), like_policies[:,0,pi,c],   label = f'like_pol_{pi}_cont_{c}')
+  #     # plt.plot(np.arange(TAU), like_policies[:,0,pi,nc],   label = 'like_pol_0_cont_1')
+  #     # plt.plot(np.arange(TAU), like_policies[:,0,pi,nc],   label = 'like_pol_1_cont_0')
+  #     # plt.plot(np.arange(TAU), like_policies[:,0,pi,nc],   label = 'like_pol_1_cont_1')
+  # plt.ylim([0,1])
+  # plt.legend(bbox_to_anchor=[1,0.8])
+
+  # like_policies = np.einsum('ktpc,ktc->ktp', like_policies, post_context)
+  # plt.figure()
+  # plt.grid()
+  # # plt.vlines(100,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+  # for pi in range(na):
+  #   plt.plot(np.arange(TAU), prior_policies[:,0,pi], label = 'prior $\pi$')
+  #   plt.plot(np.arange(TAU), like_policies[:,0,pi] , "-s", markersize=5, label = 'like $\pi$')
+  #   plt.plot(np.arange(TAU), post_policies[:,0,pi], "-x", markersize=5, label = 'posterior $\pi$')
+  # plt.legend(bbox_to_anchor=[1,0.8])
 
 
   # plt.figure()

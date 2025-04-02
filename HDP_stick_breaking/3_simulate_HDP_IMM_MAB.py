@@ -29,8 +29,15 @@ nc = 1
 T = 2
 npi = na**(T-1)
 
-switch = 50
-repeats = 10
+
+plot_rewards = True
+plot_transition_matrix = True
+plot_context = True
+plot_choice = False
+debug = False
+
+switch = 100
+repeats = 5
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
@@ -43,13 +50,13 @@ max_context = 6
 
 gammas = np.array([0.2])      # global prior context opening tendency
 alphas = np.array([16])       # local  prior context opening tendency
-kappas = np.array([43])       # self-transition bias
+kappas = np.array([50])       # self-transition bias
 
 
 
-gammas = np.array([100])     # global prior context opening tendency
-alphas = np.array([16])       # local  prior context opening tendency
-kappas = np.array([30])       # self-transition bias
+gammas = np.array([1000])       # global prior context opening tendency
+alphas = np.array([30])        # local  prior context opening tendency
+kappas = np.array([180])       # self-transition bias
 
 # gammas = np.array([3])
 # alphas = np.array([2])
@@ -65,14 +72,18 @@ rho_local = np.array([1])       # local prior counts forgetting rate
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
 reps = 20  # how many times to run simulation with same params
 
-sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,8])
+n_sims = alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps
+
+sim_data = np.zeros([n_sims,8])
 
 print(f"-----------------------------------")
-print(f"{alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps} simulations to run")
+print(f"{n_sims} simulations to run")
 i = -1
 
 
 ###### Run simulations
+learned_correct = []
+
 for alpha, gamma, kappa, rho_l, rho_g in sim_params:
     
     for rep in range(reps):
@@ -117,7 +128,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         lambda_H[-1,-1] = 100
         counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
         
-        bias = 5
+        bias = 1
         
         init_counts = np.ones([nr,nb+1])
         init_counts[0,0] = bias
@@ -240,7 +251,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     approx_pred_pol = approx_pred_pol,
                     approx_pred_rew = approx_pred_rew,
                     h = h,
-                    debug=False, # If set to True will print inferred agent beliefs up to trial 40?
+                    debug=debug, # If set to True will print inferred agent beliefs up to trial 40?
                     rho_l= rho_l,
                     rho_g = rho_g,
                     max_context=max_context,
@@ -289,7 +300,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     best_fit = fit
                     best_label = l
         
-            print(f"best label assignment: {best_label}")
+            # print(f"best label assignment: {best_label}")
            
             plots = [Q_rew[:,:,k] for k in range(agent.K)]
             titles = [None for k in range(agent.K)]
@@ -298,9 +309,10 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
 
             ### plots inferred reward distributions for each context
-
-            plot_heatmap(data=plots, file_title=file_title, title=titles)
-            plot_heatmap(agent.transition_matrix.round(2))
+            if plot_rewards:
+                plot_heatmap(data=plots, file_title=file_title, title=titles)
+            if plot_transition_matrix:
+                plot_heatmap(agent.transition_matrix.round(2))
 
 
             ### CONTEXT PLOT
@@ -311,52 +323,58 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
             post_context = data.posterior_context[:,:,:data.K+1]
             actions = data.actions
-
-            # unexpected_event = np.zeros(TAU)
             
-            # for trial, trial_type in enumerate(training_protocol):
-            #     if trial_type == 0:
-            #         unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
-            #     else:
-            #         unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
-
-            # inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
-            # y_val_unexp_event = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
-            # y_val_unexp_event[y_val_unexp_event == 0] = None
-
-            # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
-            # y_val_action[y_val_action == 0] = None
-
-            K = K = np.cumsum(agent.opened_new_context)+1 
-            novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
-            post_context[np.arange(TAU),:,K[:-1]] = 0
-            fig, ax = plt.subplots(1, figsize=(5,3))
-
-            ax.set_ylim((0,1.05))
-            plt.grid(axis="x")
-            plt.grid(axis="y")
-            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
-            # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-            # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
-            # ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
-            # ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
-
-
-            for c in range(data.K):
-                ax.plot(post_context[:,1,c],label=f"context {c+1}")
-                ax.legend()
+            if plot_context:
+                # unexpected_event = np.zeros(TAU)
                 
-            ax.plot(novel_context[:,1], 'gray', label=f"novel context")
-            ax.set_title(fr"$\alpha=${alpha}")
+                # for trial, trial_type in enumerate(training_protocol):
+                #     if trial_type == 0:
+                #         unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
+                #     else:
+                #         unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
 
-            new_context = (data.opened_new_context == True).nonzero()
+                # inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
+                # y_val_unexp_event = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
+                # y_val_unexp_event[y_val_unexp_event == 0] = None
 
-            for ind in new_context:
-                ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
-            ax.set_title(f"Posterior Context Iteration: {rep},  correct: {best_fit.round(3)}%")
-            ax.legend(loc="lower right", framealpha=1)
+                # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
+                # y_val_action[y_val_action == 0] = None
+
+                K = K = np.cumsum(agent.opened_new_context)+1 
+                novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
+                post_context[np.arange(TAU),:,K[:-1]] = 0
+                fig, ax = plt.subplots(1, figsize=(5,3))
+
+                ax.set_ylim((0,1.05))
+                plt.grid(axis="x")
+                plt.grid(axis="y")
+                ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+                # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+                # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
+                # ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
+                # ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
 
 
+                for c in range(data.K):
+                    ax.plot(post_context[:,1,c],label=f"context {c+1}")
+                    ax.legend()
+                    
+                ax.plot(novel_context[:,1], 'gray', label=f"novel context")
+                ax.set_title(fr"$\alpha=${alpha}")
+
+                new_context = (data.opened_new_context == True).nonzero()
+
+                for ind in new_context:
+                    ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
+                ax.set_title(f"Posterior Context Iteration: {rep},  correct: {best_fit.round(3)}%")
+                ax.legend(loc="lower right", framealpha=1)
+
+            print(f"rep: {best_fit.round(3)}")
+            learned_correct.append(best_fit)
+            if plot_choice:
+                plt.figure()
+                df = pd.DataFrame({"trial": np.arange(TAU), "action": agent.actions[:,0], "context":training_protocol})
+                sns.catplot(data=df, x="action",kind="count", hue="context")
             # ### messages plot
             # q_z = np.array([agent.digamma_approximation(counts[trial]) for trial  in range(TAU)])
 
@@ -469,6 +487,8 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         if i%500 == 0:
             print(f"{i,rep} alpha: {round(alpha,6)}, gamma: {round(gamma,6)}, kappa: {round(kappa,6)}, rho: {round(rho_l,6)}, K: {agent.K}")
 
+
+print(f"\n\n total: {(np.array(learned_correct) > 0.8).sum()/n_sims}")
 # plt.show()
 
         
