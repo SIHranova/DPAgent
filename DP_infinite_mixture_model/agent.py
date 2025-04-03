@@ -413,7 +413,7 @@ class Agent():
 
         if t == 0 and tau != 0:
             prior_context = self.posterior_context[tau-1,-1]
-            p = 0.95
+            p = 0.98
             q = (1-p)/(self.nc-1)
             context_transition_matrix = np.eye(self.nc)*(1-2*q) + q
             # context_transition_matrix = np.eye(self.nc)

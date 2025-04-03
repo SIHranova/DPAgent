@@ -9,7 +9,7 @@ from itertools import product
 from matplotlib.ticker import MultipleLocator
 from itertools import product
 
-from misc import *
+# from misc import *
 from environment import MultiArmedBandit
 from agent import HDP,HDP_IMM 
 from world import World
@@ -18,9 +18,70 @@ plt.rcParams['figure.dpi'] = 100
 np.random.seed(8)
 
 
+def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False):
+    
+    if not type(data) is list:
+        data = [data]
+        title = [title]
+
+    if rewards:    
+        # fig, axes = plt.subplots(len(data),1, figsize=(3, 1.7*len(data)))
+        fig, axes = plt.subplots(2, len(data) // 2, figsize=(5.5,4))
+        plt.tight_layout()
+        fig.set_dpi(dpi)
+        fig.tight_layout()
+        if not isinstance(axes, np.ndarray):
+            axes = np.array([axes])
+
+        
+
+        for ai, ax, im in zip(np.arange(len(data)), axes.flatten(), data):
+            g = sns.heatmap(data=im, annot=True, annot_kws={"size":16}, cmap="viridis", cbar=False, fmt='.2f', ax=ax,vmin=vmin, vmax=vmax)
+            # g.set_xlabel("states")
+            # g.set_ylabel("rewards")
+
+            if title is not None:
+                ax.set_title(title[ai])
+        
+            ax.set_axis_off()
+        
+        fig.suptitle("Learned reward contingencies", fontsize=14, y=1.06, fontweight="bold" )
+    else:
+        fig, axes = plt.subplots(1, len(data), figsize=(4, 4*len(data)))
+        # fig, axes = plt.subplots(1,1 // 2, figsize=(5.5,4))
+        plt.tight_layout()
+        fig.set_dpi(dpi)
+        fig.tight_layout()
+        if not isinstance(axes, np.ndarray):
+            axes = np.array([axes])
+
+        
+
+        for ai, ax, im in zip(np.arange(len(data)), axes.flatten(), data):
+            g = sns.heatmap(data=im, annot=True, annot_kws={"size":16}, cmap="viridis", cbar=False, fmt='.2f', ax=ax,vmin=vmin, vmax=vmax)
+            # g.set_xlabel("states")
+            # g.set_ylabel("rewards")
+
+            if title is not None:
+                ax.set_title(title[ai])
+        
+            ax.set_axis_off()
+        
+        fig.suptitle("Learned context transition matrix", fontsize=14, y=1.06, fontweight="bold" )
+
+
+        pass    
+
+    # plt.show()
+    # plt.suptitle("Learned Reward Contingencies")
+    if save:
+        plt.savefig(file_title + ".png",dpi=300)
+        plt.close()
+    # return fig, axes
+
 
 # Task setup parameters
-na = 3
+na = 4
 nb = na
 ns = nb+1
 no = ns
@@ -31,13 +92,14 @@ npi = na**(T-1)
 
 
 plot_rewards = True
-plot_transition_matrix = True
+plot_transition_matrix = False
 plot_context = True
 plot_choice = False
 debug = False
+dpi = 300
 
-switch = 100
-repeats = 5
+switch = 300
+repeats = 1
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
@@ -53,16 +115,20 @@ alphas = np.array([16])       # local  prior context opening tendency
 kappas = np.array([50])       # self-transition bias
 
 
-
-gammas = np.array([1000])       # global prior context opening tendency
-alphas = np.array([30])        # local  prior context opening tendency
-kappas = np.array([180])       # self-transition bias
+# I think for these parametrisations worked for 2/3/4 bandits
+# for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
+# I potentially also played around with the self-transition bias in the extra column as wel.
+# gammas = np.array([800])       # global prior context opening tendency
+# alphas = np.array([30])        # local  prior context opening tendency
+# kappas = np.array([250])       # self-transition bias
 
 # gammas = np.array([3])
 # alphas = np.array([2])
 # kappas = np.array([4])
 
-
+gammas = np.array([800])       # global prior context opening tendency
+alphas = np.array([30])        # local  prior context opening tendency
+kappas = np.array([250])       # self-transition bias
 
 
 rho_global = np.array([1])     # global prior counts forgetting rate
@@ -70,7 +136,7 @@ rho_local = np.array([1])       # local prior counts forgetting rate
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 20  # how many times to run simulation with same params
+reps = 20   # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps
 
@@ -303,16 +369,17 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             # print(f"best label assignment: {best_label}")
            
             plots = [Q_rew[:,:,k] for k in range(agent.K)]
-            titles = [None for k in range(agent.K)]
-            titles[0] = f"l: {best_label}, alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
+            titles = [f"Context {k+1}" for k in range(agent.K)]
+            # titles[0] = f"l: {best_label}, alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
 
             file_title = f"{true_divergence.mean().round(5)}_{agent.K}_{rep}_{i}"
 
             ### plots inferred reward distributions for each context
             if plot_rewards:
-                plot_heatmap(data=plots, file_title=file_title, title=titles)
+                plots = [plot[:nr-1,:nb] / plot[:nr-1,:nb].sum(axis=0)[None,:]  for plot in plots]
+                plot_heatmap(data=plots, file_title=file_title, title=titles, dpi=dpi,rewards=True)
             if plot_transition_matrix:
-                plot_heatmap(agent.transition_matrix.round(2))
+                plot_heatmap(agent.transition_matrix[:agent.K+1,:agent.K+1].round(2),dpi=dpi)
 
 
             ### CONTEXT PLOT
@@ -340,14 +407,15 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                 # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
                 # y_val_action[y_val_action == 0] = None
 
+                fig, ax = plt.subplots(1, figsize=(3.5,3), dpi=dpi)
+
                 K = K = np.cumsum(agent.opened_new_context)+1 
                 novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
                 post_context[np.arange(TAU),:,K[:-1]] = 0
-                fig, ax = plt.subplots(1, figsize=(5,3))
 
                 ax.set_ylim((0,1.05))
-                plt.grid(axis="x")
-                plt.grid(axis="y")
+                plt.grid(axis="both", alpha=0.3)
+                # plt.grid(axis="y")
                 ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
                 # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
                 # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
@@ -356,18 +424,25 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
                 for c in range(data.K):
-                    ax.plot(post_context[:,1,c],label=f"context {c+1}")
-                    ax.legend()
-                    
-                ax.plot(novel_context[:,1], 'gray', label=f"novel context")
-                ax.set_title(fr"$\alpha=${alpha}")
-
+                    ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=2.5)
+                
+                ax.plot(novel_context[:,1], 'gray', label=f"Template\ncontext")
+                
+                
                 new_context = (data.opened_new_context == True).nonzero()
+                
+                for i, ind in enumerate(new_context):
+                    if i == len(new_context)-1:
+                        ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5, label="Context\nopened")    
+                    else:
+                        ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
+                
+                ax.set_title(f"Posterior Context")#, correct in {(100*best_fit).round()}% of trials", fontsize=14, y = 1.05)
+                ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
+                # ax.legend(bbox_to_anchor=[2,-0.22], framealpha=1, fontsize=14, ncols = agent.K+2)
 
-                for ind in new_context:
-                    ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
-                ax.set_title(f"Posterior Context Iteration: {rep},  correct: {best_fit.round(3)}%")
-                ax.legend(loc="lower right", framealpha=1)
+                ax.set_xlabel("trial", fontsize=14)
+                ax.tick_params(labelsize=14)#, rotation = 45)
 
             print(f"rep: {best_fit.round(3)}")
             learned_correct.append(best_fit)

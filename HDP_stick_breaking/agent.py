@@ -820,9 +820,9 @@ class HDP_nonparam():
             current_context = np.argmax(q_c)
 
             #if c_t = argmax q(c_t) comment out three lines below
-            # q_c = np.eye(self.max_context)[current_context]
-            # q_c_joint = np.zeros([self.max_context,self.max_context])
-            # q_c_joint[current_context,self.context[tau-1]] = 1
+            q_c = np.eye(self.max_context)[current_context]
+            q_c_joint = np.zeros([self.max_context,self.max_context])
+            q_c_joint[current_context,self.context[tau-1]] = 1
 
             self.context[tau] = current_context
 
@@ -854,8 +854,8 @@ class HDP_nonparam():
             ########## 3. update parameter estimates (M-step?)
             
             # renormalizes probability after excluding new context possibility
-            # q_c[self.K:] = 0
-            # q_c /= q_c.sum()
+            q_c[self.K:] = 0
+            q_c /= q_c.sum()
 
             # self.posterior_context[tau,t] = q_c
             assert (np.isclose(q_c.sum(),1))
@@ -1149,8 +1149,6 @@ class HDP_IMM():
         self.transition_matrix_counts[1,0] = self.alpha
         self.transition_matrix_counts[0,1] = 1
         self.transition_matrix_counts[1,1] = 10 #self.kappa
-        # self.transition_matrix_counts[0,1] = 1
-        # self.transition_matrix_counts[1,1] = 1 #5 #self.kappa
         self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
         
         self.transition_matrix_log = np.zeros([self.TAU+1, self.max_context, self.max_context])

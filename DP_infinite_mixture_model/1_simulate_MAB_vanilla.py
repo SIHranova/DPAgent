@@ -14,18 +14,18 @@ from perception import HierarchicalPerception
 
 
 np.random.seed(11)
-for rep in range(10):
+for rep in range(3):
 
   # Task setup parameters
-  na = 5
+  na = 2
   nb = na
   ns = nb+1
   no = ns
   nr =  3
-  nc = 6
+  nc = 2
   T = 2
   npi = na**(T-1)
-  training_protocol = np.tile(np.arange(5).repeat(100),2)
+  training_protocol = np.tile(np.arange(na).repeat(100),5)
   # training_protocol = np.concatenate([training_protocol, [3]*100])
   
   # training_protocol = np.repeat(np.arange(2),100)
