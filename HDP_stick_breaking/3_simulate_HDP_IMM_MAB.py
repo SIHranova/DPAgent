@@ -80,6 +80,89 @@ def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dp
     # return fig, axes
 
 
+def plot_conditional_action_probs(df, context_col='context', action_col='action', base_palette='tab10',dpi=100):
+    df["context"] += 1
+    # Prepare unique contexts and actions
+    contexts = sorted(df[context_col].unique())
+    actions = sorted(df[action_col].unique())
+
+    # Count and normalize
+    counts = df.groupby([context_col, action_col]).size().reset_index(name='count')
+    counts['percent'] = counts.groupby(context_col)['count'].transform(lambda x: 100 * x / x.sum())
+
+    # Generate context -> RGB color mapping
+    if isinstance(base_palette, str):
+        base_colors = sns.color_palette(base_palette, len(contexts))
+    else:
+        base_colors = base_palette
+    context_color_map = dict(zip(contexts, base_colors))
+
+    # Function to generate RGBA with alpha varying by action index
+    def get_alpha_color(base_color, idx, total):
+        alpha = 1.175 -  0.7 * (idx + 1) / total  # Scale alpha from 0.4 to 1.0
+        # print(alpha)
+        return (*base_color, alpha)
+
+    # Apply color with alpha per (context, action)
+    counts['color'] = counts.apply(
+        lambda row: get_alpha_color(
+            context_color_map[row[context_col]],
+            actions.index(row[action_col]),
+            len(actions)
+        ),
+        axis=1
+    )
+
+    # Plotting
+    fig, ax = plt.subplots(1, figsize=(2.9, 2),dpi=dpi)
+    bar_width = 0.8 / len(actions)
+    x = np.arange(len(contexts))
+
+    for i, action in enumerate(actions):
+        subset = counts[counts[action_col] == action]
+        offsets = x + (i - len(actions)/2) * bar_width + bar_width/2
+        ax.bar(
+            offsets,
+            subset['percent'],
+            width=bar_width,
+            color=subset['color'],
+            edgecolor='black',         # <-- add this
+            linewidth=0.8,             # <-- and this (you can tweak thickness)
+            label=f'Action {action}'
+        )
+
+    # Grayscale legend for actions
+    gray_shades = [str(0.1 + 0.7 * (i + 1) / len(actions)) for i in range(len(actions))]
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, color=gray_shades[i])
+        for i in range(len(actions))
+    ]
+    plt.legend(handles, [f"Action {int(a+1)}" for a in actions], bbox_to_anchor=[1,0.85], fontsize=8.5)
+
+    plt.yticks(fontsize=8.5)
+    plt.xticks(x, contexts, fontsize=8.5)
+    plt.xlabel("Context",fontsize=8.5)
+    # plt.ylabel("P(action | context) [%]")
+    # plt.title("Conditional Action Probabilities (Grouped)")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_training_regime(training_protocol,nb=4):
+
+    rews = np.array([0.1, 0.9])
+
+    fig, ax = plt.subplots(1,1,figsize=(4,3))
+    ax.xaxis.set_major_locator(MultipleLocator(switch))
+    for i in range(nb):
+        vals = 0+(training_protocol == i)
+        print(rews)
+        print(vals)
+        plt.plot(np.arange(training_protocol.size), rews[vals])
+    plt.ylim(0,1)
+
+
 # Task setup parameters
 na = 4
 nb = na
@@ -92,9 +175,9 @@ npi = na**(T-1)
 
 
 plot_rewards = True
-plot_transition_matrix = False
+plot_transition_matrix = True
 plot_context = True
-plot_choice = False
+plot_choice = True
 debug = False
 dpi = 300
 
@@ -104,7 +187,9 @@ training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
+# plot_training_regime(training_protocol)
 # Agent setup Parameters
+
 h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
@@ -136,7 +221,7 @@ rho_local = np.array([1])       # local prior counts forgetting rate
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 20   # how many times to run simulation with same params
+reps = 6   # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps
 
@@ -145,7 +230,6 @@ sim_data = np.zeros([n_sims,8])
 print(f"-----------------------------------")
 print(f"{n_sims} simulations to run")
 i = -1
-
 
 ###### Run simulations
 learned_correct = []
@@ -194,7 +278,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         lambda_H[-1,-1] = 100
         counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
         
-        bias = 1
+        bias = 6
         
         init_counts = np.ones([nr,nb+1])
         init_counts[0,0] = bias
@@ -407,14 +491,15 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                 # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
                 # y_val_action[y_val_action == 0] = None
 
-                fig, ax = plt.subplots(1, figsize=(3.5,3), dpi=dpi)
+                fig, ax = plt.subplots(1, figsize=(3,3), dpi=dpi)
 
                 K = K = np.cumsum(agent.opened_new_context)+1 
                 novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
                 post_context[np.arange(TAU),:,K[:-1]] = 0
 
                 ax.set_ylim((0,1.05))
-                plt.grid(axis="both", alpha=0.3)
+                plt.grid(axis="x", alpha=0.7)
+                # plt.grid(axis="y", alpha=0.7)
                 # plt.grid(axis="y")
                 ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
                 # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
@@ -424,7 +509,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
                 for c in range(data.K):
-                    ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=2.5)
+                    ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=2)
                 
                 ax.plot(novel_context[:,1], 'gray', label=f"Template\ncontext")
                 
@@ -447,9 +532,9 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             print(f"rep: {best_fit.round(3)}")
             learned_correct.append(best_fit)
             if plot_choice:
-                plt.figure()
                 df = pd.DataFrame({"trial": np.arange(TAU), "action": agent.actions[:,0], "context":training_protocol})
-                sns.catplot(data=df, x="action",kind="count", hue="context")
+                plot_conditional_action_probs(df,dpi=dpi)
+
             # ### messages plot
             # q_z = np.array([agent.digamma_approximation(counts[trial]) for trial  in range(TAU)])
 

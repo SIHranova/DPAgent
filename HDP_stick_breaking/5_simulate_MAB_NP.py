@@ -80,7 +80,7 @@ def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dp
     # return fig, axes
 
 
-na = 2
+na = 4
 nb = na
 ns = nb+1
 no = ns
@@ -95,10 +95,10 @@ plot_transition_matrix = False
 plot_context = True
 plot_choice = False
 debug = False
-dpi = 100
+dpi = 300
 
-switch = 100
-reps = 5
+switch = 300
+reps = 1
 training_protocol = np.tile(np.arange(nb).repeat(switch), reps)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
@@ -108,10 +108,10 @@ h = 1000
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
-kappas = np.array([0.98])
+kappas = np.array([0.97])
 
 
-reps = 20  # how many times to run simulation with same params
+reps = 5  # how many times to run simulation with same params
 i = -1
 
 
@@ -186,7 +186,7 @@ for kappa in kappas:
 
         '''       define dummy utility RV p(R=1) '''
         utility = np.array([0.99, 0.005,0.005])
-
+        # utility = np.array([1/3]/)
 
         '''   define Env reward generation matrix '''
         p = 0.9

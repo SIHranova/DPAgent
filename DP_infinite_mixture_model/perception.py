@@ -728,7 +728,8 @@ class HierarchicalPerception():
                  env,
                  approx_pred_pol = True,             # use digamma approx when updating policy prior p(pi|c)
                  approx_pred_rew = True,             # use digamma approx when updating reward posterir p(r|s,c)
-                 observation_generation_matrix=None  # p(o_t|s_t)
+                 observation_generation_matrix=None,  # p(o_t|s_t)
+                 dec_temp = 1,
                 ):
         
  
@@ -741,6 +742,7 @@ class HierarchicalPerception():
         self.approx_pred_rew = approx_pred_rew
         self.na = na
         self.nc = nc
+        self.dec_temp = dec_temp
         
         #inherited from other classes
         self.environment = env
@@ -886,8 +888,8 @@ class HierarchicalPerception():
 
     def update_beliefs_policies(self,t,tau):
         
-        likelihood = self.fwd_norms.prod(axis=0)                      # exp(log(norms)) = -F(pi,c)
-        posterior_policies  = likelihood*self.prior_policies[tau,t]   # exp(digamma(alpha_ij) - digamma(alpha_j)) when you integrate theta out
+        likelihood = self.fwd_norms.prod(axis=0)                      # exp(log(norms)) = -F(pi,c) 
+        posterior_policies  = np.power(likelihood, self.dec_temp) * self.prior_policies[tau,t]   # exp(digamma(alpha_ij) - digamma(alpha_j)) when you integrate theta out
         posterior_policies /= posterior_policies.sum(axis=0)
         
         # store in global log

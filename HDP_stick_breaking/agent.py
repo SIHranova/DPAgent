@@ -543,6 +543,7 @@ class HibachiGrillProcess():
         
         return chosen_action
 
+
 class HDP_nonparam():
 
 
@@ -820,9 +821,9 @@ class HDP_nonparam():
             current_context = np.argmax(q_c)
 
             #if c_t = argmax q(c_t) comment out three lines below
-            q_c = np.eye(self.max_context)[current_context]
-            q_c_joint = np.zeros([self.max_context,self.max_context])
-            q_c_joint[current_context,self.context[tau-1]] = 1
+            # q_c = np.eye(self.max_context)[current_context]
+            # q_c_joint = np.zeros([self.max_context,self.max_context])
+            # q_c_joint[current_context,self.context[tau-1]] = 1
 
             self.context[tau] = current_context
 
@@ -1095,7 +1096,7 @@ class HDP_IMM():
                  approx_pred_rew = None,
                  h=1000,
                  debug = False,
-                 dec_temp = 1,
+                 dec_temp = 3,
                  rho_g = 1,
                  rho_l = 1,     # global prior counts forgetting rate
                 ):
