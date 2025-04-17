@@ -17,6 +17,7 @@ from world import World
 plt.rcParams['figure.dpi'] = 100
 np.random.seed(8)
 
+# change
 
 def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False):
     
@@ -509,7 +510,7 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
                 for c in range(data.K):
-                    ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=2)
+                    ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=1.5)
                 
                 ax.plot(novel_context[:,1], 'gray', label=f"Template\ncontext")
                 

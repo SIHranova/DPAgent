@@ -377,7 +377,7 @@ for kappa in kappas:
 
 
                 for c in range(data.K):
-                    ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=2.5)
+                    ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=1.5)
                 
                 ax.plot(novel_context[:,1], 'gray', label=f"Template\ncontext")
                 
