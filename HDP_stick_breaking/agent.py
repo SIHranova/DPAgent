@@ -1150,6 +1150,11 @@ class HDP_IMM():
         self.transition_matrix_counts[1,0] = self.alpha
         self.transition_matrix_counts[0,1] = 1
         self.transition_matrix_counts[1,1] = 10 #self.kappa
+        # self.transition_matrix_counts[0,0] = 95
+        # self.transition_matrix_counts[1,0] = 5
+        # self.transition_matrix_counts[0,1] = 5
+        # self.transition_matrix_counts[1,1] = 95
+        
         self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
         
         self.transition_matrix_log = np.zeros([self.TAU+1, self.max_context, self.max_context])
@@ -1317,7 +1322,7 @@ class HDP_IMM():
         # print("infering JOINT q(c_t,c_{t-1} in LOG space") if tau % 100 == 0 else 0
 
         
-        prior_context = self.prior_context if tau < 2 else self.transition_matrix.dot(self.posterior_context[tau-2,self.T-1])
+        prior_context = self.prior_context if tau < 2 else self.transition_matrix.dot(self.posterior_context[tau-2,self.T-1]) # np.eye(self.max_context)[self.context[tau-2]])#
 
         if t>0:
             alphas = self.prior_policies_counts[tau]
@@ -1426,11 +1431,15 @@ class HDP_IMM():
                 self.transition_matrix_counts[:self.K, self.K-1] = 1
                 self.transition_matrix_counts[self.K-1, self.K-1] += self.kappa
                 self.transition_matrix_counts[self.K,:self.K] = self.alpha
-    
+
                 # self.transition_matrix_counts[:self.K+1, self.K] = 1
                 
                 self.transition_matrix_counts[np.arange(self.K+1),self.K] = 1
                 self.transition_matrix_counts[self.K, self.K] =  10 #self.kappa
+
+                # self.transition_matrix_counts[:self.K+1,:self.K+1] = 5
+                # self.transition_matrix_counts[np.arange(self.K+1),np.arange(self.K+1)] = 95
+            
             ########## 3. update parameter estimates (M-step?) 
             
             # renormalizes probability after excluding new context possibility
@@ -1556,6 +1565,7 @@ class HDP_IMM():
     def sample_action(self,t,tau):
 
         post_policies = self.posterior_policies[tau,t]
+        # post_policies = post_policies.dot(np.eye(self.max_context)[self.current_context])
         post_policies = post_policies.dot(self.posterior_context[tau,t])
         # chosen_action = self.policies[np.argmax(post_policies)][t]
         
@@ -2687,7 +2697,7 @@ class HDP_cycling():
         else:
             iter = 0
             atol = 0.0001
-            max_iter = 50
+            max_iter = 20
             diff = True
 
             prev_q_c = np.ones(self.max_context)

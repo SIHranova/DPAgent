@@ -26,7 +26,8 @@ def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dp
 
     if rewards:    
         # fig, axes = plt.subplots(len(data),1, figsize=(3, 1.7*len(data)))
-        fig, axes = plt.subplots(2, len(data) // 2, figsize=(5.5,4))
+        n_cols = len(data)//2 if len(data)//2 > 0 else 1 
+        fig, axes = plt.subplots(2, n_cols, figsize=(5.5,4))
         plt.tight_layout()
         fig.set_dpi(dpi)
         fig.tight_layout()
@@ -90,28 +91,28 @@ T = 2
 npi = na**(T-1)
 
 
-plot_rewards = True
+plot_rewards = False
 plot_transition_matrix = False
 plot_context = True
 plot_choice = False
 debug = False
-dpi = 300
+dpi = 100
 
-switch = 300
-reps = 1
+switch = 200
+reps = 2
 training_protocol = np.tile(np.arange(nb).repeat(switch), reps)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size
 
 # Agent setup Parameters
-h = 1000
+h = 40
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
-kappas = np.array([0.97])
+kappas = np.array([0.95])
 
 
-reps = 5  # how many times to run simulation with same params
+reps = 20  # how many times to run simulation with same params
 i = -1
 
 

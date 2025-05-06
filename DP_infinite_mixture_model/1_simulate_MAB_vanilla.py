@@ -25,7 +25,7 @@ for rep in range(3):
   nc = 2
   T = 2
   npi = na**(T-1)
-  training_protocol = np.tile(np.arange(na).repeat(100),5)
+  training_protocol = np.tile(np.arange(na).repeat(20),10)
   # training_protocol = np.concatenate([training_protocol, [3]*100])
   
   # training_protocol = np.repeat(np.arange(2),100)
