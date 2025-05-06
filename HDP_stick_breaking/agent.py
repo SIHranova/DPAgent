@@ -1099,6 +1099,9 @@ class HDP_IMM():
                  dec_temp = 3,
                  rho_g = 1,
                  rho_l = 1,     # global prior counts forgetting rate
+                 gamma_init = 1000,
+                 template_context_contingencies=None,
+                 context_observation_counts = None
                 ):
         
         self.debug = debug
@@ -1115,7 +1118,7 @@ class HDP_IMM():
         self.na = na
         self.nr = utility.size
         self.ns = prior_states.size
-        self.npi = prior_policies.size
+        self.npi = prior_policies.shape[0]
         self.env = env
         self.state_transition_matrix = state_transition_matrix
         self.observation_generation_matrix = observation_generation_matrix
@@ -1132,32 +1135,48 @@ class HDP_IMM():
         self.dec_temp = dec_temp
         self.rho_g = rho_g
         self.rho_l = rho_l
+        self.gamma_init = gamma_init
+        self.template_context_contintengcies = template_context_contingencies
+        self.context_observation_counts = context_observation_counts
+        self.nco = context_observation_counts.shape[0]
 
 
     def initialize_beliefs(self):
 
         self.prior_context = np.zeros(self.max_context)
-        self.prior_context[0] = 1                                                         # context prior p(c1)
+        self.prior_context[0] = 1                                                           # context prior p(c1)
 
-        self.beta_prime = np.zeros(self.max_context)                                      # Expectation of stick break beta'_k = gamma_k1/(gamma_k1+gamma_k2) 
-        self.global_prior_counts = np.zeros([self.TAU+1, self.max_context])             # parameters gamma_1, gamma_2 of beta_k: p(beta'_k|gamma_k1, gamma_k2)
-        self.global_prior_counts[0,:2] = [1000,self.gamma] #[1, self.gamma] #[
-        self.global_prior = np.zeros(self.max_context)                                    # p(z|gamma_1, gamma_2)  = int_b p(z|b)p(b|gamma_1, gamma_2)
+        self.global_prior_counts = np.zeros([self.TAU+1, self.max_context])                 # parameters gamma_1, gamma_2 of beta_k: p(beta'_k|gamma_k1, gamma_k2)
+        self.global_prior_counts[0,:self.K+1] = [self.gamma_init]*self.K + [self.gamma]       #[1, self.gamma] #[
+        self.global_prior = np.zeros(self.max_context)                                      # p(z|gamma_1, gamma_2)  = int_b p(z|b)p(b|gamma_1, gamma_2)
         self.global_prior[0] = 1
 
         self.transition_matrix_counts = np.zeros([self.max_context, self.max_context])  # parameters alpha_1, alpha_2 of stick break pi'_jk: p(pi_jk|alpha_jk1, alpha_jk2)
-        self.transition_matrix_counts[0,0] = self.kappa + 1
-        self.transition_matrix_counts[1,0] = self.alpha
-        self.transition_matrix_counts[0,1] = 1
-        self.transition_matrix_counts[1,1] = 10 #self.kappa
+        self.transition_matrix_counts[:self.K+1,:self.K+1] = 1
+        for c in range(self.K):
+            self.transition_matrix_counts[c,c] = self.kappa + 1
+            self.transition_matrix_counts[self.K,c] = self.alpha
+            
+        self.transition_matrix_counts[:self.K,self.K] = 1 #self.alpha
+        self.transition_matrix_counts[self.K,self.K] = 10 #self.kappa
+        
         self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
         
         self.transition_matrix_log = np.zeros([self.TAU+1, self.max_context, self.max_context])
         self.transition_matrix_log[0] = self.transition_matrix_counts.copy()
         
+
+        self.prior_context_observation_counts = np.zeros([self.TAU+1, self.nco, self.max_context])
+        self.prior_context_observation_counts[0,:,:self.K+1] = self.context_observation_counts
+
+        self.prior_context_observation = np.zeros([self.TAU+1, self.nco, self.max_context])
+        self.prior_context_observation[0,:,:self.K+1] = self.digamma_approximation(self.context_observation_counts)
+
+
         self.prior_rewards_counts = np.zeros([self.TAU+1, self.nr, self.ns, self.max_context])
         self.prior_rewards_counts[0,:,:,:self.K] = self.init_reward_counts # int_phi Cat(x|phi)Dir(phi|lambda_H) = Cat(x|lambda_H)  
         self.prior_rewards_counts[0,:,:,self.K] = self.lambda_H
+        # IMPLEMENT HERE PRIOR OVER TEMPLATE CONTEXTS REWARDS
         self.prior_rewards = np.nan_to_num(self.prior_rewards_counts/self.prior_rewards_counts.sum(axis=1,keepdims=True))
 
         # self.forward_norms = np.zeros([self.TAU, self.T, self.T+1, self.npi, self.max_context])
@@ -1165,6 +1184,7 @@ class HDP_IMM():
         self.posterior_policies = np.zeros([self.TAU, self.T, self.npi, self.max_context])
 
         self.prior_policies_counts = np.zeros([self.TAU+1, self.npi, self.max_context])
+        # IMEPLEMENT HERE PRIOR OVER POLICY FOR TEMPLATE CONTEXTS
         self.prior_policies_counts[0,:,:self.K+1] = self.counts_prior_policies
         
         self.prior_policies = np.zeros([self.TAU+1, self.npi, self.max_context])
@@ -1179,7 +1199,7 @@ class HDP_IMM():
         self.posterior_states = np.zeros([self.TAU,self.T, self.ns, self.T, self.npi, self.max_context])
         self.observations = np.zeros([self.TAU,self.T], dtype=int)              # array storing observations
         self.rewards = np.zeros([self.TAU,self.T], dtype=int)              # array storing observations
-
+        self.context_obs = np.zeros([self.TAU,self.T],dtype=int)
         self.context = np.zeros(self.TAU, dtype=int)                            # array storing inferred context
         self.posterior_context = np.zeros([self.TAU, self.T, self.max_context]) # array storing posterior over contextss
         self.posterior_context_joint = np.zeros([self.TAU, self.T, self.max_context, self.max_context]) # array storing posterior over contextss
@@ -1312,7 +1332,7 @@ class HDP_IMM():
         return likelihood, posterior_policies
 
 
-    def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies):
+    def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies, context_obs):
       
         # print("infering JOINT q(c_t,c_{t-1} in LOG space") if tau % 100 == 0 else 0
 
@@ -1324,8 +1344,10 @@ class HDP_IMM():
             outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
             policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
             policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
-            context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
+            obs_surprise     = self.ln(self.prior_context_observation[tau,context_obs])
+            context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise + obs_surprise)
             context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
+            # IMPLEMENT HERE IGNORING TEMPLATE CONTEXTS OR RATHER TRANSFER THEN IN THEIR OWN STORAGE ARRAY
         
         else:
             context_likelihood = np.zeros(self.max_context)
@@ -1372,15 +1394,17 @@ class HDP_IMM():
         return q_c, q_c_joint
 
 
-    def update_beliefs(self, t, tau, state, reward, action, observation):
+    def update_beliefs(self, t, tau, state, reward, action, observation, context_obs):
         
         ########## 1. Infer state q(s,r|\pi,c), policy q(\pi|c) and context q(c) posteriors (E-Step)?
         self.observations[tau,t] = observation
         self.rewards[tau,t] = reward
+        self.context_obs[tau,t] = context_obs
 
+        # IMPLEMENT - DEAL WITH K INDEXING
         q_s = self.update_beliefs_states(t, tau, reward, action, observation)
         likelihood_policies, posterior_policies = self.update_beliefs_policies(t,tau)
-        q_c, q_c_joint = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies)
+        q_c, q_c_joint = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies, context_obs)
 
 
         if t == self.T-1:
@@ -1413,11 +1437,24 @@ class HDP_IMM():
                 self.opened_new_context[tau+1] = True
 
                 # # add prior over new weight beta'_k
-                self.global_prior_counts[tau, self.K-1:self.K+1] = [1000, self.gamma] #[1,self.gamma] #   # ??? is this the correct initialization? 
+                self.global_prior_counts[tau, self.K-1:self.K+1] = [self.gamma_init, self.gamma] #[1,self.gamma] #
             
+                # IMPLEMENT TEMPLATE WORK
+
+                # self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H
+                # chosen_template = np.argmax(self.template_context_contintengcies[reward,observation])
+                # self.prior_rewards_counts[tau,:,:,self.K-1] = self.template_context_contintengcies[:,:,chosen_template] #self.lambda_H  + np.random.uniform(size = self.lambda_H.shape)*0.3  
+                # self.template_context_contintengcies = np.delete(self.template_context_contintengcies,chosen_template,axis=-1)
+                
+                # print(f"tau,t: {tau,t}, phase: {tau//300}")
+                # print(f"obs: {observation}, rew: {reward}")
+                # print(f"temp:{chosen_template}")
+                # print(self.prior_rewards_counts[tau,:,:,self.K-1].round())
 
                 self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
                 self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H  + np.random.uniform(size = self.lambda_H.shape)*0.3  
+
+
                 # add prior over new atom \theta_k
                 self.prior_policies_counts[tau,:,self.K] = self.h
 
@@ -1429,8 +1466,11 @@ class HDP_IMM():
     
                 # self.transition_matrix_counts[:self.K+1, self.K] = 1
                 
-                self.transition_matrix_counts[np.arange(self.K+1),self.K] = 1
+                self.transition_matrix_counts[np.arange(self.K+1),self.K] = 1 #(self.alpha+self.K)/self.K
                 self.transition_matrix_counts[self.K, self.K] =  10 #self.kappa
+
+                self.prior_context_observation_counts[tau,:,self.K] = 1
+
             ########## 3. update parameter estimates (M-step?) 
             
             # renormalizes probability after excluding new context possibility
@@ -1485,6 +1525,13 @@ class HDP_IMM():
                 self.prior_policies[tau+1] = np.nan_to_num(counts / counts.sum(axis=0))
 
 
+            ### 3.4 update context observation counts
+
+            self.prior_context_observation_counts[tau+1] = self.prior_context_observation_counts[tau].copy() 
+            self.prior_context_observation_counts[tau+1,context_obs,:] += q_c
+            self.prior_context_observation[tau+1] = self.digamma_approximation(self.prior_context_observation_counts[tau+1])
+
+
 
         ######### Print inferred beliefs
         if self.debug:
@@ -1528,7 +1575,7 @@ class HDP_IMM():
 
                     print(f"\ntransition matrix")
                     print(f"contexts:{self.context[tau-1], self.context[tau]}")
-                    print(self.transition_matrix_counts)
+                    print(self.transition_matrix_counts.round(3))
                     print(self.transition_matrix.round(3))
                     
 

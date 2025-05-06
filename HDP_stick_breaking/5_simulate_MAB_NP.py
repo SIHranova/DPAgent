@@ -98,7 +98,7 @@ debug = False
 dpi = 300
 
 switch = 300
-reps = 1
+reps = 3
 training_protocol = np.tile(np.arange(nb).repeat(switch), reps)
 # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
 TAU = training_protocol.size

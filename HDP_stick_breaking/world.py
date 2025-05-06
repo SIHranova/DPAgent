@@ -10,6 +10,7 @@ class World():
         self.TAU = environment.TAU
         self.T = environment.T
         self.nr = environment.nr
+        self.training_protocol = training_protocol
 
 
     def simulate_experiment(self, TAU=None):
@@ -26,10 +27,10 @@ class World():
                     state = self.environment.sample_hidden_state(t, tau, action)
 
                 observation = self.environment.generate_observation(t,tau,state)
-
+                context_obs = self.environment.generate_context_observation(t, tau, self.training_protocol[tau])
                 reward = self.environment.sample_reward(t, tau, state)
                 
-                self.agent.update_beliefs(t, tau, state, reward, action, observation)
+                self.agent.update_beliefs(t, tau, state, reward, action, observation, context_obs)
 
                 if t < self.T-1:
                     action = self.agent.sample_action(t,tau)

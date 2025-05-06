@@ -158,13 +158,16 @@ na = 4
 nb = na
 ns = nb+1
 no = ns
+nco = na
 nr = 3
 nc = 1
+nt = na  # number of template contexts!
+max_context = 6
 T = 2
 npi = na**(T-1)
 
 
-plot_rewards = False
+plot_rewards = True
 plot_transition_matrix = False
 plot_context = True
 plot_choice = False
@@ -172,7 +175,7 @@ plot_messages = False
 debug = False
 dpi = 100
 
-switch = 200
+switch = 300
 repeats = 1
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
@@ -184,7 +187,6 @@ TAU = training_protocol.size
 
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
-max_context = 7
 
 
 # I think for these parametrisations worked for 2/3/4 bandits
@@ -194,12 +196,13 @@ max_context = 7
 # alphas = np.array([30])        # local  prior context opening tendency
 # kappas = np.array([250])       # self-transition bias
 
-total_counts = 280
+total_counts = 250
+
 prop = 0.11
 hs = np.array([70]) # np.arange(1,200,10)
 gammas = np.array([800])                    # global prior context opening tendency
-alphas = np.array([30])                     #total_counts*prop])      # local  prior context opening tendency
-kappas = np.array([250])                    #total_counts*(1-prop)])  # self-transition bias
+alphas = np.array([total_counts*prop]) # 30])        
+kappas = np.array([total_counts*(1-prop)])  # 250])
 
 
 rho_global = np.array([1])     # global prior counts forgetting rate
@@ -207,7 +210,7 @@ rho_local = np.array([1])       # local prior counts forgetting rate
 
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global)
-reps = 5   # how many times to run simulation with same params
+reps = 20   # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*reps
 
@@ -248,18 +251,26 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         
         lambda_H = np.ones([nr,ns])
         lambda_H[-1,-1] = 100
-        counts_prior_rewards = np.stack([lambda_H for i in range(nc)],axis=-1)
+        counts_prior_rewards = np.zeros([nr,nb+1,nc])#np.stack([lambda_H for i in range(nc)],axis=-1)
         
         bias = 1
-        
-        init_counts = np.ones([nr,nb+1])
-        init_counts[0,0] = bias
-        init_counts[1,1:] = bias
-        init_counts[:,-1] = [1,1,100]
-        counts_prior_rewards[:,:,0] = init_counts
-        counts_prior_rewards[:,:,0] += np.random.uniform(low=0, high=1, size=(nr,ns))
+        for c in range(nc):
+            init_counts = np.ones([nr,nb+1])
+            init_counts[0,c] = bias
+            init_counts[1,np.arange(na+1) != c] = bias
+            init_counts[:,-1] = [1,1,100]
+            counts_prior_rewards[:,:,c] = init_counts
+            counts_prior_rewards[:,:,c] += np.random.uniform(low=0, high=1, size=(nr,ns))
 
-
+        # IMPLEMENT CREATION OF TEMPLATE CONTEXTS
+        template_context_contingencies = np.ones([nr,nb+1,na])
+        bias = 10
+        for temp in range(0,nt):
+            template_context_contingencies[0,temp,temp] = bias
+            template_context_contingencies[1, np.arange(na+1) != temp, temp] = bias
+            template_context_contingencies[:,-1,:] = np.array([1,1,100])[:,None]
+        template_context_contingencies += np.random.uniform(low=0, high=1, size=(nr,ns,nt))
+            
 
         if approx_pred_rew:
             prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
@@ -269,7 +280,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
 
 
         '''           define counts alpha in p(pi|theta,alpha)           '''
-        counts_prior_policies = np.zeros([npi,nc]) + h
+        counts_prior_policies = np.zeros([npi,nc+1]) + h
 
         if approx_pred_pol:
             prior_policies = scp.softmax(scp.digamma(counts_prior_policies) - scp.digamma(counts_prior_policies.sum(axis=0)))
@@ -281,11 +292,17 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         utility = np.array([0.99, 0.005,0.005]) # np.array([1/nr]*3) #
 
 
+        '''   define context obs contingencies '''
+        context_observation_counts = np.ones([no,nc+1])
+
+
         '''   define Env reward generation matrix '''
         p = 0.9
         q = 1 - p
         
-        
+
+
+
         bandits = np.arange(nb)
         reward_generation_matrix = np.ones([nr,ns,len(bandits)])*q
 
@@ -347,6 +364,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                             n_bandits = nb,
                             training_protocol=training_protocol,
                             observation_generation_matrix=observation_generation_matrix,
+                            context_observation_generation_matrix = np.eye(na),
                             no=no)
 
 
@@ -374,17 +392,16 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                     rho_l= rho_l,
                     rho_g = rho_g,
                     max_context=max_context,
-                    K = nc)
+                    K = nc,
+                    template_context_contingencies = template_context_contingencies,
+                    context_observation_counts=context_observation_counts)
 
 
 
-        world = World(agent, env)
+        world = World(agent, env, training_protocol=training_protocol)
         world.simulate_experiment()
 
-
-
-
-
+        #### Some preliminary analysis
         best_fit = 0
         best_label = []        
         for perm in range(500):
@@ -392,10 +409,8 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             n_context = agent.K if agent.K >= na else na
             l = np.random.permutation(n_context)        
             labels = l[agent.context]
-            # fit = (labels == training_protocol).sum()/TAU
             fit = (agent.context == l[training_protocol]).sum()/TAU
             
-
             if fit > best_fit:
                 best_fit = fit
                 best_label = l
@@ -447,13 +462,12 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         # y_val_action[y_val_action == 0] = None
 
 
-        K = K = np.cumsum(agent.opened_new_context)+1 
+        K = np.cumsum(agent.opened_new_context)+nc 
         novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
         post_context[np.arange(TAU),:,K[:-1]] = 0
 
 
         post_context /= post_context.sum(axis=-1)[:,:,None]
-        
         
         new_context = (data.opened_new_context == True).nonzero()
             
@@ -540,6 +554,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         
         df = pd.DataFrame()
         post_context = data.posterior_context[:,:,:]
+        K = np.cumsum(agent.opened_new_context)+nc 
         post_context[np.arange(TAU),:,K[:-1]] = 0
         post_context /= post_context.sum(axis=-1)[:,:,None]
         all_labels = np.arange(max_context)
@@ -560,7 +575,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         
 print(f"\n\n total: {(np.array(learned_correct) > 0.8).sum()/n_sims}")
         
-#%%
+#%% Plot averaged context posterior for different habitual tendencies
 df_big = pd.concat(dfs).reset_index()
 df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
 cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
@@ -596,7 +611,7 @@ axes.xaxis.set_major_locator(MultipleLocator(switch))
     # ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
     # ax.set_ylim([0,1])
 
-#%%
+#%% Plot effect of habitual tendency on relative context entropy
 
 fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
 plt.tight_layout()
@@ -621,9 +636,4 @@ ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
 ax[1].set_ylim([0.42, 0.8])
 # ax[1].set_xlim([2,202])
 # plt.ylim([0,0.2])
-
-#%%
-
-
-#%%
 
