@@ -821,9 +821,9 @@ class HDP_nonparam():
             current_context = np.argmax(q_c)
 
             #if c_t = argmax q(c_t) comment out three lines below
-            # q_c = np.eye(self.max_context)[current_context]
-            # q_c_joint = np.zeros([self.max_context,self.max_context])
-            # q_c_joint[current_context,self.context[tau-1]] = 1
+            q_c = np.eye(self.max_context)[current_context]
+            q_c_joint = np.zeros([self.max_context,self.max_context])
+            q_c_joint[current_context,self.context[tau-1]] = 1
 
             self.context[tau] = current_context
 
