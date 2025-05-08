@@ -6,8 +6,8 @@ import pandas as pd
 import seaborn as sns
 import scipy.special as scp
 from itertools import product
+
 from matplotlib.ticker import MultipleLocator
-from itertools import product
 
 # from misc import *
 from environment import MultiArmedBandit
@@ -15,10 +15,10 @@ from agent import HDP,HDP_IMM
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
-np.random.seed(8)
+np.random.seed(1)
 
 
-def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False):
+def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False,fmt='.2f'):
     
     if not type(data) is list:
         data = [data]
@@ -35,7 +35,7 @@ def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=
 
 
     for ai, ax, im in zip(np.arange(len(data)), axes.flatten(), data):
-        g = sns.heatmap(data=im, annot=True, annot_kws={"size":16}, cmap="viridis", cbar=False, fmt='.2f', ax=ax,vmin=vmin, vmax=vmax)
+        g = sns.heatmap(data=im, annot=True, annot_kws={"size":16}, cmap="viridis", cbar=False, fmt=fmt, ax=ax,vmin=vmin, vmax=vmax)
         # g.set_xlabel("states")
         # g.set_ylabel("rewards")
 
@@ -154,7 +154,7 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
     plt.show()
 
 # Task setup parameters
-na = 4
+na = 3
 nb = na
 ns = nb+1
 no = ns
@@ -162,7 +162,7 @@ nco = na
 nr = 3
 nc = 1
 nt = na  # number of template contexts!
-max_context = 6
+max_context = 12
 T = 2
 npi = na**(T-1)
 
@@ -170,13 +170,16 @@ npi = na**(T-1)
 plot_rewards = True
 plot_transition_matrix = False
 plot_context = True
+plot_context_obs = False
 plot_choice = False
 plot_messages = False
+
+use_context_obs = False
 debug = False
 dpi = 100
 
-switch = 300
-repeats = 1
+switch = 100
+repeats = 3
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
 
@@ -196,21 +199,21 @@ approx_pred_rew = True
 # alphas = np.array([30])        # local  prior context opening tendency
 # kappas = np.array([250])       # self-transition bias
 
-total_counts = 250
+total_counts = 70
 
 prop = 0.11
-hs = np.array([70]) # np.arange(1,200,10)
-gammas = np.array([800])                    # global prior context opening tendency
+hs = np.array([10000]) # np.arange(1,200,10)
+gamma_init = 1
+gammas = np.array([50]) #50 with cap 70 np.arange(300,320)                    # global prior context opening tendency
 alphas = np.array([total_counts*prop]) # 30])        
 kappas = np.array([total_counts*(1-prop)])  # 250])
-
-
+cap = 70
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])       # local prior counts forgetting rate 
 
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global)
-reps = 20   # how many times to run simulation with same params
+reps = 2   # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*reps
 
@@ -247,6 +250,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         observation_generation_matrix = np.eye(ns)
 
 
+
         '''           define p(r|s,c)             '''
         
         lambda_H = np.ones([nr,ns])
@@ -260,11 +264,11 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             init_counts[1,np.arange(na+1) != c] = bias
             init_counts[:,-1] = [1,1,100]
             counts_prior_rewards[:,:,c] = init_counts
-            counts_prior_rewards[:,:,c] += np.random.uniform(low=0, high=1, size=(nr,ns))
+            # counts_prior_rewards[:,:,c] += np.random.uniform(low=0, high=1, size=(nr,ns))
 
         # IMPLEMENT CREATION OF TEMPLATE CONTEXTS
         template_context_contingencies = np.ones([nr,nb+1,na])
-        bias = 10
+        bias = 1
         for temp in range(0,nt):
             template_context_contingencies[0,temp,temp] = bias
             template_context_contingencies[1, np.arange(na+1) != temp, temp] = bias
@@ -279,8 +283,35 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             prior_rewards = counts_prior_rewards / counts_prior_rewards.sum(axis=0)
 
 
+
+        '''   define Env reward generation matrix '''
+        p = 0.9
+        q = 1 - p
+        
+
+        bandits = np.arange(nb)
+        reward_generation_matrix = np.ones([nr,ns,len(bandits)])*q
+
+        for context,b in enumerate(bandits):
+            reward_generation_matrix[0,b,context] = p
+            reward_generation_matrix[1,np.arange(nb+1) != b,context] = p
+
+        reward_generation_matrix[-1,:] = 0
+        reward_generation_matrix[:,-1] = 0
+        reward_generation_matrix[-1,-1] = 1
+
+
+        '''          define p(d|c)                '''
+        p = 1
+        q = 1-p
+        context_obs_generation_matrix = np.ones([nco, na])*(q/(na-1))
+        context_obs_generation_matrix[np.arange(nco), np.arange(nco)] = p
+
+
         '''           define counts alpha in p(pi|theta,alpha)           '''
         counts_prior_policies = np.zeros([npi,nc+1]) + h
+
+
 
         if approx_pred_pol:
             prior_policies = scp.softmax(scp.digamma(counts_prior_policies) - scp.digamma(counts_prior_policies.sum(axis=0)))
@@ -295,24 +326,6 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         '''   define context obs contingencies '''
         context_observation_counts = np.ones([no,nc+1])
 
-
-        '''   define Env reward generation matrix '''
-        p = 0.9
-        q = 1 - p
-        
-
-
-
-        bandits = np.arange(nb)
-        reward_generation_matrix = np.ones([nr,ns,len(bandits)])*q
-
-        for context,b in enumerate(bandits):
-            reward_generation_matrix[0,b,context] = p
-            reward_generation_matrix[1,np.arange(nb+1) != b,context] = p
-
-        reward_generation_matrix[-1,:] = 0
-        reward_generation_matrix[:,-1] = 0
-        reward_generation_matrix[-1,-1] = 1
 
 
         ######## Plot task setup
@@ -364,7 +377,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                             n_bandits = nb,
                             training_protocol=training_protocol,
                             observation_generation_matrix=observation_generation_matrix,
-                            context_observation_generation_matrix = np.eye(na),
+                            context_observation_generation_matrix = context_obs_generation_matrix,
                             no=no)
 
 
@@ -394,7 +407,10 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                     max_context=max_context,
                     K = nc,
                     template_context_contingencies = template_context_contingencies,
-                    context_observation_counts=context_observation_counts)
+                    context_observation_counts=context_observation_counts,
+                    use_context_obs=use_context_obs,
+                    gamma_init = gamma_init,
+                    cap=cap)
 
 
 
@@ -403,7 +419,8 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
 
         #### Some preliminary analysis
         best_fit = 0
-        best_label = []        
+        best_label = []
+
         for perm in range(500):
             
             n_context = agent.K if agent.K >= na else na
@@ -433,9 +450,12 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         if plot_rewards:
             plots = [plot[:nr-1,:nb] / plot[:nr-1,:nb].sum(axis=0)[None,:]  for plot in plots]
             plot_rewards_heatmap(data=plots, title=titles, dpi=dpi,rewards=True)
+
         if plot_transition_matrix:
             plot_transition_matrix_heatmap(agent.transition_matrix[:agent.K+1,:agent.K+1].round(2),dpi=dpi)
 
+        if plot_context_obs:
+            plot_transition_matrix_heatmap(agent.prior_context_observation_counts[-1,:,:agent.K+1],dpi=dpi,vmax=None)
 
         ### CONTEXT PLOT
         
@@ -443,7 +463,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
         prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
         like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
-        post_context = data.posterior_context[:,:,:data.K+1]
+        post_context = data.posterior_context[:,:,:data.K+1].copy()
         actions = data.actions
         
         # unexpected_event = np.zeros(TAU)
@@ -494,7 +514,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                 else:
                     ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
             
-            ax.set_title(f"{learned_clear_winner}; Posterior Context; correct in {(100*best_fit).round()}% of trials", fontsize=14, y = 1.05)
+            ax.set_title(f"{gamma}; Posterior Context; correct in {(100*best_fit).round()}% of trials", fontsize=14, y = 1.05)
             ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
             # ax.legend(bbox_to_anchor=[2,-0.22], framealpha=1, fontsize=14, ncols = agent.K+2)
 
@@ -552,8 +572,10 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         print(f"rep: {best_fit.round(3)}")
         learned_correct.append(best_fit)
         
+        ## create results dataframe with contexts correctly labeled
         df = pd.DataFrame()
-        post_context = data.posterior_context[:,:,:]
+
+        post_context = data.posterior_context[:,:,:].copy()
         K = np.cumsum(agent.opened_new_context)+nc 
         post_context[np.arange(TAU),:,K[:-1]] = 0
         post_context /= post_context.sum(axis=-1)[:,:,None]
@@ -580,8 +602,8 @@ df_big = pd.concat(dfs).reset_index()
 df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
 cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
-fig, axes = plt.subplots(2,2)
-axes = axes.flatten()
+fig, axes = plt.subplots(1,agent.K, figsize=(3*agent.K,2),dpi=300)
+
 plt.tight_layout()
 plt.subplots_adjust(wspace=0.4,hspace=0.4)
 
@@ -592,48 +614,49 @@ for h in hs:
         axes[i].set_ylabel(f"Posterior Context {i}",fontsize=14)
         axes[i].set_xlabel("trial",fontsize=14)
         axes[i].xaxis.set_major_locator(MultipleLocator(switch))
-        axes[i].set_ylim([0,1])
+        axes[i].set_ylim([-0.05,1.05])
 #######
 
-fig, axes = plt.subplots(1,1)
-plt.tight_layout()
-# plt.subplots_adjust(wspace=0.4,hspace=0.4)
-axes.grid(axis="x", alpha=0.7)
-sns.lineplot(ax=axes, data=df.query(f"h=={hs[0]} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
-axes.set_ylabel(f"Posterior Novel Context",fontsize=14)
-axes.set_xlabel("trial",fontsize=14)
-axes.set_ylim([0,1])
-axes.xaxis.set_major_locator(MultipleLocator(switch))
 
-    # fig, ax = plt.subplots(1,1)
-    # plt.grid(axis="x", alpha=0.7)
-    # sns.lineplot(df.query(f"h=={h} "), x="index", y="post_context",hue="context", palette="tab10", errorbar="se")
-    # ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
-    # ax.set_ylim([0,1])
+# fig, axes = plt.subplots(1,1)
+# plt.tight_layout()
+# # plt.subplots_adjust(wspace=0.4,hspace=0.4)
+# axes.grid(axis="x", alpha=0.7)
+# sns.lineplot(ax=axes, data=df.query(f"h=={hs[0]} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
+# axes.set_ylabel(f"Posterior Novel Context",fontsize=14)
+# axes.set_xlabel("trial",fontsize=14)
+# axes.set_ylim([0,1])
+# axes.xaxis.set_major_locator(MultipleLocator(switch))
+
+#     # fig, ax = plt.subplots(1,1)
+#     # plt.grid(axis="x", alpha=0.7)
+#     # sns.lineplot(df.query(f"h=={h} "), x="index", y="post_context",hue="context", palette="tab10", errorbar="se")
+#     # ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
+#     # ax.set_ylim([0,1])
 
 #%% Plot effect of habitual tendency on relative context entropy
 
-fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
-plt.tight_layout()
-plt.subplots_adjust(wspace=0.4)
-grouped = df.groupby(["h", "phase","context"])["post_context"].mean()
+# fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
+# plt.tight_layout()
+# plt.subplots_adjust(wspace=0.4)
+# grouped = df.groupby(["h", "phase","context"])["post_context"].mean()
 
-mean_post = np.zeros(hs.size)
-for hi, h in enumerate(hs):
-    for k in range(na):
-        mean_post[hi] += (grouped[h,k,k])
-mean_post /= na
+# mean_post = np.zeros(hs.size)
+# for hi, h in enumerate(hs):
+#     for k in range(na):
+#         mean_post[hi] += (grouped[h,k,k])
+# mean_post /= na
 
 
-ax[0].plot(hs,mean_post, '-o')
-ax[0].set_ylabel(r"Mean $p(c_t=c_{true}|o)$",fontsize=14)
-ax[0].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
-ax[0].set_ylim([0.5, 1])
-# ax[0].set_xlim([2,202])
-ax[1].plot(hs, df_big.groupby(["h"])["entropy"].mean(),"-o")
-ax[1].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
-ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
-ax[1].set_ylim([0.42, 0.8])
-# ax[1].set_xlim([2,202])
-# plt.ylim([0,0.2])
+# ax[0].plot(hs,mean_post, '-o')
+# ax[0].set_ylabel(r"Mean $p(c_t=c_{true}|o)$",fontsize=14)
+# ax[0].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
+# ax[0].set_ylim([0.5, 1])
+# # ax[0].set_xlim([2,202])
+# ax[1].plot(hs, df_big.groupby(["h"])["entropy"].mean(),"-o")
+# ax[1].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
+# ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
+# ax[1].set_ylim([0.42, 0.8])
+# # ax[1].set_xlim([2,202])
+# # plt.ylim([0,0.2])
 

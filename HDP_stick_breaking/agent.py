@@ -1096,12 +1096,14 @@ class HDP_IMM():
                  approx_pred_rew = None,
                  h=1000,
                  debug = False,
-                 dec_temp = 3,
+                 dec_temp = 2,
                  rho_g = 1,
                  rho_l = 1,     # global prior counts forgetting rate
                  gamma_init = 1000,
                  template_context_contingencies=None,
-                 context_observation_counts = None
+                 context_observation_counts = None,
+                 use_context_obs = False,
+                 cap = 100
                 ):
         
         self.debug = debug
@@ -1114,7 +1116,6 @@ class HDP_IMM():
         self.kappa = kappa                                                 # self transition bias
         self.lambda_H = lambda_H                                           # parameters of base Measure H = Dir(lambda)
         self.init_reward_counts = counts_prior_rewards
-        
         self.na = na
         self.nr = utility.size
         self.ns = prior_states.size
@@ -1126,11 +1127,10 @@ class HDP_IMM():
         self.prior_policies = prior_policies
         self.counts_prior_policies = counts_prior_policies
         self.utility = utility
-        
+        self.use_context_obs = use_context_obs
         self.prior_states = prior_states
         self.approx_pred_pol = approx_pred_pol
         self.approx_pred_rew = approx_pred_rew
-
         self.h = h
         self.dec_temp = dec_temp
         self.rho_g = rho_g
@@ -1139,6 +1139,7 @@ class HDP_IMM():
         self.template_context_contintengcies = template_context_contingencies
         self.context_observation_counts = context_observation_counts
         self.nco = context_observation_counts.shape[0]
+        self.cap = cap
 
 
     def initialize_beliefs(self):
@@ -1321,7 +1322,9 @@ class HDP_IMM():
     def update_beliefs_policies(self,t,tau):
         
         likelihood = np.zeros([self.npi, self.max_context])
-        likelihood[:,:self.K+1] = self.fwd_norms.prod(axis=0)
+        R = (self.prior_rewards[tau]*self.ln(self.prior_rewards[tau])).sum(axis=0)[:,None,None,:]
+        information_gain = (self.posterior_states[tau,t]*R).sum(axis=0)[-1,:,:]#.sum(axis=0)
+        likelihood[:,:self.K+1] = self.fwd_norms.prod(axis=0)#*np.exp(information_gain[:,:self.K+1])
         posterior_policies  = np.power(likelihood,self.dec_temp)*self.prior_policies[tau]
         posterior_policies /= posterior_policies.sum(axis=0)
         posterior_policies = np.nan_to_num(posterior_policies)
@@ -1345,7 +1348,8 @@ class HDP_IMM():
             policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
             policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
             obs_surprise     = self.ln(self.prior_context_observation[tau,context_obs])
-            context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise + obs_surprise)
+            
+            context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise + self.use_context_obs*obs_surprise)
             context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
             # IMPLEMENT HERE IGNORING TEMPLATE CONTEXTS OR RATHER TRANSFER THEN IN THEIR OWN STORAGE ARRAY
         
@@ -1410,7 +1414,7 @@ class HDP_IMM():
         if t == self.T-1:
             
             ########## 2. sample context and create new stick breaks and atoms if necessary 
-            # shift = 0 if tau < 10 else tau - 10
+            # shift = 0 if tau < 20 else tau - 20
 
             # if tau == 0 or not np.any(self.opened_new_context[shift:tau]):
             #     current_context = np.argmax(q_c)
@@ -1452,7 +1456,7 @@ class HDP_IMM():
                 # print(self.prior_rewards_counts[tau,:,:,self.K-1].round())
 
                 self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
-                self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H  + np.random.uniform(size = self.lambda_H.shape)*0.3  
+                self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H # + np.random.uniform(size = self.lambda_H.shape)*0.3  
 
 
                 # add prior over new atom \theta_k
@@ -1487,8 +1491,11 @@ class HDP_IMM():
             
             ### 3.1 update global context prior params q(beta'|gamma) and construct new q(z_t)
 
-            
-            self.global_prior_counts[tau+1] = self.global_prior_counts[tau] + q_c
+            beta_init = self.global_prior_counts[tau].copy()
+            beta_init[:self.K] = self.gamma_init
+            counts = self.rho_g*(self.global_prior_counts[tau]) + q_c + (1-self.rho_g)*beta_init
+            counts[counts>self.cap] = self.cap
+            self.global_prior_counts[tau+1] = counts
             self.global_prior = self.digamma_approximation(self.global_prior_counts[tau+1])
 
             ### 3.2 update reward probability params phi q(phi|lambda)
@@ -1511,7 +1518,9 @@ class HDP_IMM():
             alpha_init[:,self.K:] = 0
             self.transition_matrix_counts = self.rho_l*self.transition_matrix_counts + q_c_joint + (1-self.rho_l)*alpha_init
             self.transition_matrix = self.digamma_approximation(self.transition_matrix_counts)
-            
+            p = 0.88#np.diag(self.transition_matrix)[:self.K].mean()
+            q = (1-p) / self.K
+            self.transition_matrix[:,self.K] = np.array([q]*self.K + [p] + [0]*(self.max_context - self.K-1))
             self.transition_matrix_log[tau+1] = self.transition_matrix_counts.copy()
             ### 3.4 update context specific policy prior params q(\theta|epsilon)
 
@@ -1535,18 +1544,18 @@ class HDP_IMM():
 
         ######### Print inferred beliefs
         if self.debug:
-            if tau < 1000:
+            if tau < 10000:
                 if self.opened_new_context[tau+1]:
                     self.K -= 1
                 print(f"--------------------\ntau,t: {tau,t}")
                 print(f"action: {action}, observation: {observation}, reward: {reward}")
 
 
-                print(f"\nq(R|pi,c); policy likelihood:")
-                print(likelihood_policies.round(3))
+                # print(f"\nq(R|pi,c); policy likelihood:")
+                # print(likelihood_policies.round(3))
 
-                print(f"q(pi|c) policy posterior:")
-                print(posterior_policies.round(3))
+                # print(f"q(pi|c) policy posterior:")
+                # print(posterior_policies.round(3))
                 
                 print(f"\nq_c (renormalised):")
                 print(q_c.round(3))
@@ -1578,6 +1587,11 @@ class HDP_IMM():
                     print(self.transition_matrix_counts.round(3))
                     print(self.transition_matrix.round(3))
                     
+
+                    # print(f"\ncontext obs matrix")
+                    # print(f"context:{self.context[tau]}, obs: {self.context_obs[tau]}")
+                    # print(self.prior_context_observation_counts[tau+1].round(3))
+                    # print(self.prior_context_observation[tau+1].round(3))
 
                     # print(f"\npolicy counts")
                     # print(f"chosen policy:{chosen_pol}")

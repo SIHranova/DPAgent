@@ -936,17 +936,17 @@ class HierarchicalPerception():
             posterior_context = outcome_surprise + policy_entropy + policy_surprise + self.ln(prior_context)
 
 
-            print('\n',tau, self.rewards[tau,t], self.actions[tau][0])
-            print('outcome_surprise')
-            print(outcome_surprise.round(3))
-            print('policy_entropy')
-            print(policy_entropy.round(3))
-            print('policy_surprise')
-            print(policy_surprise.round(3))
-            print('prior_context')
-            print(self.ln(prior_context).round(3))
-            print('posterior context')
-            print(np.nan_to_num(scp.softmax(posterior_context)))
+            # print('\n',tau, self.rewards[tau,t], self.actions[tau][0])
+            # print('outcome_surprise')
+            # print(outcome_surprise.round(3))
+            # print('policy_entropy')
+            # print(policy_entropy.round(3))
+            # print('policy_surprise')
+            # print(policy_surprise.round(3))
+            # print('prior_context')
+            # print(self.ln(prior_context).round(3))
+            # print('posterior context')
+            # print(np.nan_to_num(scp.softmax(posterior_context)))
 
 
         else:

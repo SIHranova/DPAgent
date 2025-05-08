@@ -361,7 +361,8 @@ class Agent():
                  env,
                  perception,
                  approx_pred_pol = True,
-                 approx_pred_rew = True
+                 approx_pred_rew = True,
+                 debug=False
                 ):
         
         # direct assignments
@@ -378,6 +379,8 @@ class Agent():
         self.ns = env.ns
         self.actions = env.actions
         self.rewards = env.rewards
+
+        self.debug = debug
   
 
         #inherited from perception class
@@ -431,7 +434,7 @@ class Agent():
         if (t == self.T-1 and tau < self.TAU-1):
             self.perc.update_beliefs_prior_policies(t, tau, posterior_context)
             
-        if tau < self.TAU - 1:
+        if tau < self.TAU - 1 and self.debug:
             print(f"--------------------\ntau,t: {tau,t}")
             print(f"action: {action}, observation: {observation}, reward: {reward}")
 
