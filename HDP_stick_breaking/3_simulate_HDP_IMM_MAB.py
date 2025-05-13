@@ -1,12 +1,12 @@
 #%%
 import numpy as np
+np.set_printoptions(suppress=True)
 # %matplotlib widget
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import scipy.special as scp
 from itertools import product
-
 from matplotlib.ticker import MultipleLocator
 
 # from misc import *
@@ -15,7 +15,7 @@ from agent import HDP,HDP_IMM
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
-np.random.seed(1)
+np.random.seed(2)
 
 
 def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False,fmt='.2f'):
@@ -154,7 +154,7 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
     plt.show()
 
 # Task setup parameters
-na = 3
+na = 4
 nb = na
 ns = nb+1
 no = ns
@@ -171,7 +171,7 @@ plot_rewards = True
 plot_transition_matrix = False
 plot_context = True
 plot_context_obs = False
-plot_choice = False
+plot_choice = True
 plot_messages = False
 
 use_context_obs = False
@@ -179,7 +179,7 @@ debug = False
 dpi = 100
 
 switch = 100
-repeats = 3
+repeats = 2
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
 
@@ -195,25 +195,27 @@ approx_pred_rew = True
 # I think for these parametrisations worked for 2/3/4 bandits
 # for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
 # I potentially also played around with the self-transition bias in the extra column as wel.
-# gammas = np.array([800])       # global prior context opening tendency
-# alphas = np.array([30])        # local  prior context opening tendency
-# kappas = np.array([250])       # self-transition bias
+gammas = np.array([800])       # global prior context opening tendency
+alphas = np.array([30])        # local  prior context opening tendency
+kappas = np.array([250])       # self-transition bias
+hs = np.array([70])
+gamma_init = 1000
+cap = 100000
 
-total_counts = 70
-
-prop = 0.11
-hs = np.array([10000]) # np.arange(1,200,10)
-gamma_init = 1
-gammas = np.array([50]) #50 with cap 70 np.arange(300,320)                    # global prior context opening tendency
-alphas = np.array([total_counts*prop]) # 30])        
-kappas = np.array([total_counts*(1-prop)])  # 250])
-cap = 70
+# total_counts = 100
+# prop = 0.11
+# hs = np.array([10000]) # np.arange(1,200,10)
+# gammas = np.array([50]) #50 with cap 70 np.arange(300,320)                    # global prior context opening tendency
+# alphas = np.array([total_counts*prop]) # 30])        
+# kappas = np.array([total_counts*(1-prop)])  # 250])
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])       # local prior counts forgetting rate 
+# cap = 70
+# gamma_init = 1
 
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global)
-reps = 2   # how many times to run simulation with same params
+reps = 20   # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*reps
 
@@ -227,8 +229,7 @@ learned_correct = []
 
 dfs = []
 
-for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
-    
+for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:  
     for rep in range(reps):
 
         ####### Setup simulation
@@ -264,11 +265,11 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             init_counts[1,np.arange(na+1) != c] = bias
             init_counts[:,-1] = [1,1,100]
             counts_prior_rewards[:,:,c] = init_counts
-            # counts_prior_rewards[:,:,c] += np.random.uniform(low=0, high=1, size=(nr,ns))
-
+            counts_prior_rewards[:,:,c] += np.random.uniform(low=0, high=1, size=(nr,ns))
+            
         # IMPLEMENT CREATION OF TEMPLATE CONTEXTS
         template_context_contingencies = np.ones([nr,nb+1,na])
-        bias = 1
+        bias = 8
         for temp in range(0,nt):
             template_context_contingencies[0,temp,temp] = bias
             template_context_contingencies[1, np.arange(na+1) != temp, temp] = bias
@@ -660,3 +661,26 @@ for h in hs:
 # # ax[1].set_xlim([2,202])
 # # plt.ylim([0,0.2])
 
+
+
+#%%
+
+
+# probs = template_context_contingencies.copy()
+# probs = template_context_contingencies[:,:,[0,1,2,1,1,2]]
+# modes = []
+# for p in range(probs.shape[-1]):
+#     print()
+#     print(probs[:,:,p].round())
+#     print(np.argmax(probs[:,:,p],axis=0))
+#     modes.append(np.argmax(probs[:,:,p],axis=0))
+# # modes = np.array(modes)
+# print(modes)
+# duplicates = []
+# for mi, mode in enumerate(modes):
+#     for ci, comparison in enumerate(modes):
+#         if np.all(mode == comparison) and mi < ci and ci not in duplicates:
+#             duplicates.append(ci)
+            
+# print(duplicates)
+    

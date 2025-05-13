@@ -15,7 +15,8 @@ class MultiArmedBandit():
                  TAU=3,
                  T=2,
                  n_bandits=2,
-                 observation_generation_matrix=None, no=None,
+                 observation_generation_matrix=None, 
+                 no=None,
                  context_observation_generation_matrix = None):
 
         self.Rho = reward_generation_matrix
