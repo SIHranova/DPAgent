@@ -18,6 +18,7 @@ plt.rcParams['figure.dpi'] = 100
 np.random.seed(1)
 
 
+
 def plot_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False):
     
     if not type(data) is list:
@@ -247,6 +248,16 @@ for kappa in kappas:
                             training_protocol=training_protocol,
                             observation_generation_matrix=observation_generation_matrix,
                             no=no)
+        
+        env = MultiArmedBandit(state_transition_matrix,
+                    reward_generation_matrix, 
+                    TAU=TAU,
+                    T=T,
+                    n_bandits = nb,
+                    training_protocol=training_protocol,
+                    observation_generation_matrix=observation_generation_matrix,
+                    context_observation_generation_matrix = np.eye(na),
+                    no=no)
 
 
         agent = HDP_nonparam(lambda_H = lambda_H,
@@ -274,7 +285,7 @@ for kappa in kappas:
                     # rho_g = rho_g,
                     )
         
-        world = World(agent, env)
+        world = World(agent, env, training_protocol=training_protocol)
         world.simulate_experiment()
 
 

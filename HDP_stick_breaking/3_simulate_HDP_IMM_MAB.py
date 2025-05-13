@@ -15,7 +15,7 @@ from agent import HDP,HDP_IMM
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
-np.random.seed(2)
+np.random.seed(3)
 
 
 def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False,fmt='.2f'):
@@ -162,24 +162,25 @@ nco = na
 nr = 3
 nc = 1
 nt = na  # number of template contexts!
-max_context = 12
+max_context = 7
 T = 2
 npi = na**(T-1)
 
 
-plot_rewards = True
+plot_rewards = False
 plot_transition_matrix = False
-plot_context = True
+plot_context = False
 plot_context_obs = False
-plot_choice = True
+plot_choice = False
 plot_messages = False
 
 use_context_obs = False
+use_template = False
 debug = False
 dpi = 100
 
-switch = 100
-repeats = 2
+switch = 300
+repeats = 1
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
 
@@ -198,7 +199,8 @@ approx_pred_rew = True
 gammas = np.array([800])       # global prior context opening tendency
 alphas = np.array([30])        # local  prior context opening tendency
 kappas = np.array([250])       # self-transition bias
-hs = np.array([70])
+hs =     np.arange(10,200,10)  # np.array([70])
+
 gamma_init = 1000
 cap = 100000
 
@@ -411,7 +413,8 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                     context_observation_counts=context_observation_counts,
                     use_context_obs=use_context_obs,
                     gamma_init = gamma_init,
-                    cap=cap)
+                    cap=cap,
+                    use_template = use_template)
 
 
 
@@ -522,7 +525,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             ax.set_xlabel("trial", fontsize=14)
             ax.tick_params(labelsize=14)#, rotation = 45)
 
-        
+            plt.show()
         
         if plot_messages:
             #### messages plot?
@@ -603,12 +606,11 @@ df_big = pd.concat(dfs).reset_index()
 df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
 cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
-fig, axes = plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
-
-plt.tight_layout()
-plt.subplots_adjust(wspace=0.4,hspace=0.4)
 
 for h in hs:
+    fig, axes = plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
+    plt.tight_layout()
+    plt.subplots_adjust(wspace=0.4,hspace=0.4)
     for i in range(na):
         axes[i].grid(axis="x", alpha=0.7)
         sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={i}"), x="index",y="post_context", color=cols[i], errorbar="se")
@@ -616,51 +618,51 @@ for h in hs:
         axes[i].set_xlabel("trial",fontsize=14)
         axes[i].xaxis.set_major_locator(MultipleLocator(switch))
         axes[i].set_ylim([-0.05,1.05])
-#######
 
+#%%###### 
 
-# fig, axes = plt.subplots(1,1)
-# plt.tight_layout()
-# # plt.subplots_adjust(wspace=0.4,hspace=0.4)
-# axes.grid(axis="x", alpha=0.7)
-# sns.lineplot(ax=axes, data=df.query(f"h=={hs[0]} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
-# axes.set_ylabel(f"Posterior Novel Context",fontsize=14)
-# axes.set_xlabel("trial",fontsize=14)
-# axes.set_ylim([0,1])
-# axes.xaxis.set_major_locator(MultipleLocator(switch))
+fig, axes = plt.subplots(1,1)
+plt.tight_layout()
+# plt.subplots_adjust(wspace=0.4,hspace=0.4)
+axes.grid(axis="x", alpha=0.7)
+sns.lineplot(ax=axes, data=df.query(f"h=={hs[0]} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
+axes.set_ylabel(f"Posterior Novel Context",fontsize=14)
+axes.set_xlabel("trial",fontsize=14)
+axes.set_ylim([0,1])
+axes.xaxis.set_major_locator(MultipleLocator(switch))
 
-#     # fig, ax = plt.subplots(1,1)
-#     # plt.grid(axis="x", alpha=0.7)
-#     # sns.lineplot(df.query(f"h=={h} "), x="index", y="post_context",hue="context", palette="tab10", errorbar="se")
-#     # ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
-#     # ax.set_ylim([0,1])
+    # fig, ax = plt.subplots(1,1)
+    # plt.grid(axis="x", alpha=0.7)
+    # sns.lineplot(df.query(f"h=={h} "), x="index", y="post_context",hue="context", palette="tab10", errorbar="se")
+    # ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
+    # ax.set_ylim([0,1])
 
 
 #%% Plot effect of habitual tendency on relative context entropy
 
-# fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
-# plt.tight_layout()
-# plt.subplots_adjust(wspace=0.4)
-# grouped = df.groupby(["h", "phase","context"])["post_context"].mean()
+fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
+plt.tight_layout()
+plt.subplots_adjust(wspace=0.4)
+grouped = df.groupby(["h", "phase","context"])["post_context"].mean()
 
-# mean_post = np.zeros(hs.size)
-# for hi, h in enumerate(hs):
-#     for k in range(na):
-#         mean_post[hi] += (grouped[h,k,k])
-# mean_post /= na
+mean_post = np.zeros(hs.size)
+for hi, h in enumerate(hs):
+    for k in range(na):
+        mean_post[hi] += (grouped[h,k,k])
+mean_post /= na
 
 
-# ax[0].plot(hs,mean_post, '-o')
-# ax[0].set_ylabel(r"Mean $p(c_t=c_{true}|o)$",fontsize=14)
-# ax[0].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
-# ax[0].set_ylim([0.5, 1])
-# # ax[0].set_xlim([2,202])
-# ax[1].plot(hs, df_big.groupby(["h"])["entropy"].mean(),"-o")
-# ax[1].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
-# ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
-# ax[1].set_ylim([0.42, 0.8])
-# # ax[1].set_xlim([2,202])
-# # plt.ylim([0,0.2])
+ax[0].plot(hs[1:],mean_post[1:], '-o')
+ax[0].set_ylabel(r"Mean $p(c_t=c_{true}|o)$",fontsize=14)
+ax[0].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
+# ax[0].set_ylim([0.86,1])
+ax[0].set_xlim([2,202])
+ax[1].plot(hs[1:], df_big.groupby(["h"])["entropy"].mean()[1:],"-o")
+ax[1].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
+ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
+# ax[1].set_ylim([0.3, 0.65])
+# ax[1].set_xlim([2,202])
+# plt.ylim([0,0.2])
 
 
 

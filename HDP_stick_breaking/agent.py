@@ -1103,7 +1103,8 @@ class HDP_IMM():
                  template_context_contingencies=None,
                  context_observation_counts = None,
                  use_context_obs = False,
-                 cap = 10000
+                 cap = 10000,
+                 use_template=False
                 ):
         
         self.debug = debug
@@ -1140,6 +1141,7 @@ class HDP_IMM():
         self.context_observation_counts = context_observation_counts
         self.nco = context_observation_counts.shape[0]
         self.cap = cap
+        self.use_template = use_template
         self.duplicates = []
 
 
@@ -1352,7 +1354,6 @@ class HDP_IMM():
             
             context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise + self.use_context_obs*obs_surprise)
             context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
-            # IMPLEMENT HERE IGNORING TEMPLATE CONTEXTS OR RATHER TRANSFER THEN IN THEIR OWN STORAGE ARRAY
         
         else:
             context_likelihood = np.zeros(self.max_context)
@@ -1458,20 +1459,19 @@ class HDP_IMM():
                 # # add prior over new weight beta'_k
                 self.global_prior_counts[tau, self.K-1:self.K+1] = [self.gamma_init, self.gamma] #[1,self.gamma] #
             
-                # IMPLEMENT TEMPLATE WORK
-
-                self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H
-                chosen_template = np.argmax(self.template_context_contintengcies[reward,observation])
-                self.prior_rewards_counts[tau,:,:,self.K-1] = self.template_context_contintengcies[:,:,chosen_template] #self.lambda_H  + np.random.uniform(size = self.lambda_H.shape)*0.3  
-                self.template_context_contintengcies = np.delete(self.template_context_contintengcies,chosen_template,axis=-1)
+                if self.use_template:
+                    self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H
+                    chosen_template = np.argmax(self.template_context_contintengcies[reward,observation])
+                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.template_context_contintengcies[:,:,chosen_template] #self.lambda_H  + np.random.uniform(size = self.lambda_H.shape)*0.3  
+                    self.template_context_contintengcies = np.delete(self.template_context_contintengcies,chosen_template,axis=-1)
                 
-                # print(f"tau,t: {tau,t}, phase: {tau//300}")
-                # print(f"obs: {observation}, rew: {reward}")
-                # print(f"temp:{chosen_template}")
-                # print(self.prior_rewards_counts[tau,:,:,self.K-1].round())
-
-                # self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
-                # self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H +np.random.uniform(size = self.lambda_H.shape)*0.3  
+                    # print(f"tau,t: {tau,t}, phase: {tau//300}")
+                    # print(f"obs: {observation}, rew: {reward}")
+                    # print(f"temp:{chosen_template}")
+                    # print(self.prior_rewards_counts[tau,:,:,self.K-1].round())
+                else:
+                    self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
+                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H + np.random.uniform(size = self.lambda_H.shape)
 
 
                 # add prior over new atom \theta_k
@@ -1642,8 +1642,11 @@ class HDP_IMM():
     def sample_action(self,t,tau):
 
         post_policies = self.posterior_policies[tau,t]
-        post_policies = post_policies.dot(self.posterior_context[tau,t])
-        # chosen_action = self.policies[np.argmax(post_policies)][t]
+        post_cont = self.posterior_context[tau,t].copy()
+        post_cont[:self.K] /= post_cont[:self.K].sum()
+        post_cont[self.K] = 0 
+        post_policies = post_policies.dot(post_cont)
+        # print(tau,post_policies)
         
         post_actions = np.zeros(self.na)
         for a in range(self.na):
@@ -2373,7 +2376,11 @@ class HDP():
     def sample_action(self,t,tau):
 
         post_policies = self.posterior_policies[tau,t]
-        post_policies = post_policies.dot(self.posterior_context[tau,t])
+        post_cont = self.posterior_context[tau,t].copy()
+        # post_cont[:self.K] /= post_cont[:self.K].sum()
+        # post_cont[self.K] = 0 
+        post_policies = post_policies.dot(post_cont)
+        print(tau,post_policies)
         # chosen_action = self.policies[np.argmax(post_policies)][t]
         
         post_actions = np.zeros(self.na)
