@@ -603,7 +603,7 @@ df_big = pd.concat(dfs).reset_index()
 df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
 cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
-fig, axes = plt.subplots(1,agent.K, figsize=(3*agent.K,2),dpi=300)
+fig, axes = plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
 
 plt.tight_layout()
 plt.subplots_adjust(wspace=0.4,hspace=0.4)
@@ -634,6 +634,7 @@ for h in hs:
 #     # sns.lineplot(df.query(f"h=={h} "), x="index", y="post_context",hue="context", palette="tab10", errorbar="se")
 #     # ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
 #     # ax.set_ylim([0,1])
+
 
 #%% Plot effect of habitual tendency on relative context entropy
 
