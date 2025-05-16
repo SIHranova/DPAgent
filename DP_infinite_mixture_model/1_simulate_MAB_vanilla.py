@@ -153,7 +153,7 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
     plt.tight_layout()
     plt.show()
 
-na = 10
+na = 4
 nb = na
 ns = nb+1
 no = ns
@@ -171,7 +171,7 @@ plot_messages = False
 debug = False
 dpi = 100
 
-switch = 200
+switch = 100
 repeats = 1
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])

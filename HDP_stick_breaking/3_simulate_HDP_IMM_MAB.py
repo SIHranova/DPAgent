@@ -15,8 +15,7 @@ from agent import HDP,HDP_IMM
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
-np.random.seed(3)
-
+np.random.seed(2)
 
 def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False,fmt='.2f'):
     
@@ -35,7 +34,7 @@ def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=
 
 
     for ai, ax, im in zip(np.arange(len(data)), axes.flatten(), data):
-        g = sns.heatmap(data=im, annot=True, annot_kws={"size":16}, cmap="viridis", cbar=False, fmt=fmt, ax=ax,vmin=vmin, vmax=vmax)
+        g = sns.heatmap(data=im, annot=True, annot_kws={"size":14}, cmap="viridis", cbar=False, fmt=fmt, ax=ax,vmin=vmin, vmax=vmax)
         # g.set_xlabel("states")
         # g.set_ylabel("rewards")
 
@@ -50,6 +49,8 @@ def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=
     if save:
         plt.savefig(file_title + ".png",dpi=300)
         plt.close()
+
+    return fig, axes
 
 
 def plot_transition_matrix_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=300, rewards=False):
@@ -160,7 +161,7 @@ ns = nb+1
 no = ns
 nco = na
 nr = 3
-nc = 1
+nc = 0
 nt = na  # number of template contexts!
 max_context = 7
 T = 2
@@ -169,18 +170,18 @@ npi = na**(T-1)
 
 plot_rewards = False
 plot_transition_matrix = False
-plot_context = False
+plot_context = True
 plot_context_obs = False
 plot_choice = False
 plot_messages = False
 
 use_context_obs = False
-use_template = False
+use_template = True
 debug = False
 dpi = 100
 
-switch = 300
-repeats = 1
+switch = 100
+repeats = 2
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
 # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
 
@@ -197,9 +198,9 @@ approx_pred_rew = True
 # for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
 # I potentially also played around with the self-transition bias in the extra column as wel.
 gammas = np.array([800])       # global prior context opening tendency
-alphas = np.array([30])        # local  prior context opening tendency
-kappas = np.array([250])       # self-transition bias
-hs =     np.arange(10,200,10)  # np.array([70])
+alphas = np.array([15])        # local  prior context opening tendency
+kappas = np.array([100])       # self-transition bias
+hs =     np.array([70]) #1,2,3,4,5,6,7,8,9,10,20,40,50]) # np.arange(10,200,10)  # 
 
 gamma_init = 1000
 cap = 100000
@@ -217,10 +218,9 @@ rho_local = np.array([1])       # local prior counts forgetting rate
 
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global)
-reps = 20   # how many times to run simulation with same params
+reps = 20 # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*reps
-
 
 print(f"-----------------------------------")
 print(f"{n_sims} simulations to run")
@@ -271,13 +271,13 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             
         # IMPLEMENT CREATION OF TEMPLATE CONTEXTS
         template_context_contingencies = np.ones([nr,nb+1,na])
-        bias = 8
+        bias = 10
         for temp in range(0,nt):
             template_context_contingencies[0,temp,temp] = bias
             template_context_contingencies[1, np.arange(na+1) != temp, temp] = bias
             template_context_contingencies[:,-1,:] = np.array([1,1,100])[:,None]
         template_context_contingencies += np.random.uniform(low=0, high=1, size=(nr,ns,nt))
-            
+
 
         if approx_pred_rew:
             prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
@@ -305,7 +305,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
 
 
         '''          define p(d|c)                '''
-        p = 1
+        p = 0.9
         q = 1-p
         context_obs_generation_matrix = np.ones([nco, na])*(q/(na-1))
         context_obs_generation_matrix[np.arange(nco), np.arange(nco)] = p
@@ -327,7 +327,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
 
 
         '''   define context obs contingencies '''
-        context_observation_counts = np.ones([no,nc+1])
+        context_observation_counts = np.ones([nco,nc+1])
 
 
 
@@ -425,7 +425,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         best_fit = 0
         best_label = []
 
-        for perm in range(500):
+        for perm in range(1000):
             
             n_context = agent.K if agent.K >= na else na
             l = np.random.permutation(n_context)        
@@ -435,20 +435,19 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             if fit > best_fit:
                 best_fit = fit
                 best_label = l
-        
-        
-        
+
+
+
         a = agent.prior_rewards[-1,:nr-1,:,:agent.K]
         entropy = (-a*np.log(a)).sum(axis=0)
         learned_clear_winner = np.all(entropy < 0.6)
-        
-            
+
+
         # print(f"best label assignment: {best_label}")
         
         Q_rew = agent.prior_rewards[-1,:,:,:agent.K]  + 1e-10      # inferred reward distribution given state and context
         plots = [Q_rew[:,:,k] for k in range(agent.K)]
         titles = [f"Context {k+1}" for k in range(agent.K)]
-        # titles[0] = f"l: {best_label}, alpha: {round(alpha,6)}, gamma: {round(gamma,6)}", f"kappa: {round(kappa,6)}"
 
         ### plots inferred reward distributions for each context
         if plot_rewards:
@@ -499,31 +498,30 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             fig, ax = plt.subplots(1, figsize=(3,3), dpi=dpi)
             ax.set_ylim((0,1.05))
             plt.grid(axis="x", alpha=0.7)
-            # plt.grid(axis="y", alpha=0.7)
-            # plt.grid(axis="y")
             ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
             # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
             # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
             # ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
             # ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
-            
+
             for c in range(data.K):
-                ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=2)
-            
+                ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=1)
+
             ax.plot(novel_context[:,1], 'gray', label=f"Template\ncontext")
-            
+
+
             for i, ind in enumerate(new_context):
                 if i == len(new_context)-1:
                     ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5, label="Context\nopened")    
                 else:
                     ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
-            
-            ax.set_title(f"{gamma}; Posterior Context; correct in {(100*best_fit).round()}% of trials", fontsize=14, y = 1.05)
+
+            # ax.set_title(f"{gamma}; Posterior Context; correct in {(100*best_fit).round()}% of trials", fontsize=14, y = 1.05)
             ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
             # ax.legend(bbox_to_anchor=[2,-0.22], framealpha=1, fontsize=14, ncols = agent.K+2)
-
+            ax.set_ylabel("Posterior Context", fontsize=14)
             ax.set_xlabel("trial", fontsize=14)
-            ax.tick_params(labelsize=14)#, rotation = 45)
+            ax.tick_params(axis="x", labelsize=12, rotation = 40)
 
             plt.show()
         
@@ -596,49 +594,105 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         df["K"] = agent.K
         uniform = (post_cont>0)*np.ones([TAU, max_context])/K[:-1][:,None]
         df["entropy"] = np.nan_to_num(post_cont*np.log(post_cont/uniform)).sum(axis=1)
+        df["choice"]  = agent.actions[:,0]
+        # df["nth_trial"] = np.tile(np.tile(np.arange(switch),nb)+1, repeats)
 
         dfs.append(df)
         
 print(f"\n\n total: {(np.array(learned_correct) > 0.8).sum()/n_sims}")
-        
-#%% Plot averaged context posterior for different habitual tendencies
 df_big = pd.concat(dfs).reset_index()
+
+
+#%% ACCURACY
+df = df_big.copy()
+
+df["chose_correct"] = df["choice"] == df["phase"]
+df['trial_n'] = df.groupby(['agent','h','phase']).cumcount() + 1
+df['cum_correct'] = df.groupby(['agent','h','phase'])['chose_correct'].cumsum()
+df['cum_accuracy'] = df['cum_correct'] / df['trial_n']
+
+fig, axes = plt.subplots(int(np.ceil(na/2)),2,dpi=300)
+plt.tight_layout()
+axes = axes.flatten()
+for ai, ax in enumerate(axes):
+    sns.lineplot(ax=ax, data=df.query(f"phase == {ai}"), x="trial_n", y="cum_accuracy",\
+                 hue="h", errorbar="se")
+    ax.set_ylabel("Cummulative accuracy")
+    ax.set_xlabel("Trial")
+    ax.set_title(f"Context {ai+1}")
+    ax.legend(title=r"$\alpha_{init}$")
+#%% CONTEXT POSTERIOR MANY AGENTS
+
 df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
 cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
 
+
+
 for h in hs:
-    fig, axes = plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
+    fig, axes = plt.subplots(1,na+1,dpi=300,figsize=(12,2),sharey=True)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
+    axes = axes.flatten()
+    axes[0].set_ylabel(f"Posterior Context", fontsize=14)
     plt.tight_layout()
-    plt.subplots_adjust(wspace=0.4,hspace=0.4)
-    for i in range(na):
+    # plt.subplots_adjust(wspace=0.4,hspace=0.5)
+    for i in range(na+1):
         axes[i].grid(axis="x", alpha=0.7)
-        sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={i}"), x="index",y="post_context", color=cols[i], errorbar="se")
-        axes[i].set_ylabel(f"Posterior Context {i}",fontsize=14)
         axes[i].set_xlabel("trial",fontsize=14)
-        axes[i].xaxis.set_major_locator(MultipleLocator(switch))
         axes[i].set_ylim([-0.05,1.05])
+        axes[i].tick_params(axis="x", labelrotation=40)
+        axes[i].xaxis.set_major_locator(MultipleLocator(switch))
+        
+        if not i == na:
+            axes[i].set_title(f"Context {i+1}", fontsize=14)
+            sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={i}"), x="index",y="post_context", color=cols[i], errorbar="se")
+        else:
+            sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
+            axes[i].set_title(f"Novel Context", fontsize=14)
 
-#%%###### 
+    # fig, axes = plt.subplots(1,1,figsize=(2.363*1.3, 1.687*1.3),dpi=300)
+    # plt.tight_layout()
+    # # plt.subplots_adjust(wspace=0.4,hspace=0.4)
+    # axes.grid(axis="x", alpha=0.7)
+    # axes.set_xlabel("trial",fontsize=14)
+    # axes.xaxis.set_major_locator(MultipleLocator(switch))
+    # axes.set_ylim([-0.05,1.05])
+    # axes.tick_params(axis="x", labelrotation=40)
 
-fig, axes = plt.subplots(1,1)
-plt.tight_layout()
-# plt.subplots_adjust(wspace=0.4,hspace=0.4)
-axes.grid(axis="x", alpha=0.7)
-sns.lineplot(ax=axes, data=df.query(f"h=={hs[0]} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
-axes.set_ylabel(f"Posterior Novel Context",fontsize=14)
-axes.set_xlabel("trial",fontsize=14)
-axes.set_ylim([0,1])
-axes.xaxis.set_major_locator(MultipleLocator(switch))
+    # axes.xaxis.set_major_locator(MultipleLocator(switch))
 
-    # fig, ax = plt.subplots(1,1)
-    # plt.grid(axis="x", alpha=0.7)
-    # sns.lineplot(df.query(f"h=={h} "), x="index", y="post_context",hue="context", palette="tab10", errorbar="se")
-    # ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
-    # ax.set_ylim([0,1])
 
+
+###############################
+# for h in [70]:
+#     fig, axes = plt.subplots(int(np.ceil(na/2)),2,dpi=300)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
+#     axes = axes.flatten()
+#     plt.tight_layout()
+#     plt.subplots_adjust(wspace=0.4,hspace=0.5)
+#     for i in range(na):
+#         axes[i].grid(axis="x", alpha=0.7)
+#         sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={i}"), x="index",y="post_context", color=cols[i], errorbar="se")
+#         axes[i].set_ylabel(f"Posterior Context {i+1}",fontsize=14)
+#         axes[i].set_xlabel("trial",fontsize=14)
+#         axes[i].xaxis.set_major_locator(MultipleLocator(switch))
+#         axes[i].set_ylim([-0.05,1.05])
+#         axes[i].tick_params(axis="x", labelrotation=40)
+
+
+#     fig, axes = plt.subplots(1,1,figsize=(2.363*1.3, 1.687*1.3),dpi=300)
+#     plt.tight_layout()
+#     # plt.subplots_adjust(wspace=0.4,hspace=0.4)
+#     axes.grid(axis="x", alpha=0.7)
+#     sns.lineplot(ax=axes, data=df.query(f"h=={70} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
+#     axes.set_ylabel(f"Posterior Novel\nContext", fontsize=14)
+#     axes.set_xlabel("trial",fontsize=14)
+#     axes.xaxis.set_major_locator(MultipleLocator(switch))
+#     axes.set_ylim([-0.05,1.05])
+#     axes.tick_params(axis="x", labelrotation=40)
+
+#     axes.xaxis.set_major_locator(MultipleLocator(switch))
 
 #%% Plot effect of habitual tendency on relative context entropy
+df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
 
 fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
 plt.tight_layout()
@@ -666,9 +720,22 @@ ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
 
 
 
+
 #%%
+# f, ax = plot_rewards_heatmap([reward_generation_matrix[:-1,:-1,c] for c in range(na)])
+# f.suptitle("")
+# plt.tight_layout()
+# plt.subplots_adjust(wspace=0.4,hspace=0.7)
+# for ai, a in enumerate(ax.flatten()):
+#     a.set_axis_on()
+#     a.set_xlabel("Bandit",fontsize=12)
+#     a.set_yticklabels([1,0])
+#     a.set_ylabel("Reward",fontsize=12)
+#     a.tick_params(left=False, bottom=False) ## other options are right and top
+#     a.set_title(f"Context {ai+1}")
 
 
+#%%
 # probs = template_context_contingencies.copy()
 # probs = template_context_contingencies[:,:,[0,1,2,1,1,2]]
 # modes = []

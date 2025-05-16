@@ -953,6 +953,7 @@ class HierarchicalPerception():
             posterior_context = self.ln(prior_context)
 
         posterior_context = np.nan_to_num(scp.softmax(posterior_context))
+        np.eye(self.nc)[np.argmax(posterior_context)]
         self.posterior_context[tau,t] = posterior_context
         
         # if t == 0:
