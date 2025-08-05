@@ -1136,7 +1136,7 @@ class HDP_IMM():
                  approx_pred_rew = None,
                  h=1000,
                  debug = False,
-                 dec_temp = 3,
+                 dec_temp = 1,
                  rho_g = 1,
                  rho_l = 1,     # global prior counts forgetting rate
                  gamma_init = 1000,
@@ -1685,8 +1685,11 @@ class HDP_IMM():
 
         post_policies = self.posterior_policies[tau,t]
         post_cont = self.posterior_context[tau,t].copy()
-        # post_cont[:self.K] /= post_cont[:self.K].sum()
-        # post_cont[self.K] = 0 
+
+        if tau >= 1:
+            post_cont[:self.K] /= post_cont[:self.K].sum()
+            post_cont[self.K] = 0
+
         post_policies = post_policies.dot(post_cont)
         # print(tau,post_policies)
         

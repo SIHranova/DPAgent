@@ -156,8 +156,6 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
 
 # Task setup parameters
 
-
-
 plot_rewards = False
 plot_transition_matrix = False
 plot_context = False
@@ -165,9 +163,9 @@ plot_context_obs = False
 plot_choice = False
 plot_messages = False
 
-plot_avg_context_posterior = False
-plot_avg_context_accuracy= True
-
+plot_avg_context_posterior = True
+plot_avg_context_accuracy= False
+plot_avg_context_entropy_and_accuracy = True
 use_context_obs = False
 use_template = False
 debug = False
@@ -185,31 +183,23 @@ approx_pred_rew = True
 # I think for these parametrisations worked for 2/3/4 bandits
 # for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
 # I potentially also played around with the self-transition bias in the extra column as wel.
+
 number_of_bandits = np.array([4])
 gammas = np.array([850])       # global prior context opening tendency
 alphas = np.array([30])        # local  prior context opening tendency
 kappas = np.array([250])       # self-transition bias
-hs =     np.array([70,1000])     #1,2,3,4,5,6,7,8,9,10,20,40,50]) # np.arange(10,200,10)  # 
+hs =     np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
+rho_global = np.array([1])     # global prior counts forgetting rate
+rho_local = np.array([1])      # local prior counts forgetting rate 
 
 gamma_init = 1000
 cap = 100000
-
-# total_counts = 100
-# prop = 0.11
-# hs = np.array([10000]) # np.arange(1,200,10)
-# gammas = np.array([50]) #50 with cap 70 np.arange(300,320)                    # global prior context opening tendency
-# alphas = np.array([total_counts*prop]) # 30])        
-# kappas = np.array([total_counts*(1-prop)])  # 250])
-rho_global = np.array([1])     # global prior counts forgetting rate
-rho_local = np.array([1])       # local prior counts forgetting rate 
-    # cap = 70
-# gamma_init = 1
 
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global, number_of_bandits)
 reps = 20 # how many times to run simulation with same params
 
-n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*reps
+n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*number_of_bandits.size*reps
 
 print(f"-----------------------------------")
 print(f"{n_sims} simulations to run")
@@ -236,7 +226,6 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
         training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
         # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
 
-        # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
         TAU = training_protocol.size
 
 
@@ -427,7 +416,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
         world = World(agent, env, training_protocol=training_protocol)
         world.simulate_experiment()
 
-        #### Some preliminary analysis
+        #### Find correct labels for inferred contexts
         best_fit = 0
         best_label = []
 
@@ -448,8 +437,6 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
         entropy = (-a*np.log(a)).sum(axis=0)
         learned_clear_winner = np.all(entropy < 0.6)
 
-
-        # print(f"best label assignment: {best_label}")
         
         Q_rew = agent.prior_rewards[-1,:,:,:agent.K]  + 1e-10      # inferred reward distribution given state and context
         plots = [Q_rew[:,:,k] for k in range(agent.K)]
@@ -469,35 +456,21 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
         ### CONTEXT PLOT
         
         data = agent
+        post_context = data.posterior_context[:,:,:].copy()
         post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
         prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
         like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
-        post_context = data.posterior_context[:,:,:data.K+1].copy()
         actions = data.actions
         
-        # unexpected_event = np.zeros(TAU)
-        
-        # for trial, trial_type in enumerate(training_protocol):
-        #     if trial_type == 0:
-        #         unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
-        #     else:
-        #         unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
-
-        # inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
-        # y_val_unexp_event = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
-        # y_val_unexp_event[y_val_unexp_event == 0] = None
-
-        # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
-        # y_val_action[y_val_action == 0] = None
-
-
         K = np.cumsum(agent.opened_new_context)+nc 
         novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
         post_context[np.arange(TAU),:,K[:-1]] = 0
-
-
         post_context /= post_context.sum(axis=-1)[:,:,None]
-        
+
+        all_labels = np.arange(max_context)
+        other_labels = [label for label in all_labels if label not in best_label]
+        post_context = post_context[:,:, list(best_label) + other_labels]
+
         new_context = (data.opened_new_context == True).nonzero()
             
         if plot_context:
@@ -583,15 +556,9 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
         ## create results dataframe with contexts correctly labeled
         df = pd.DataFrame()
 
-        post_context = data.posterior_context[:,:,:].copy()
-        K = np.cumsum(agent.opened_new_context)+nc 
-        post_context[np.arange(TAU),:,K[:-1]] = 0
-        post_context /= post_context.sum(axis=-1)[:,:,None]
-        all_labels = np.arange(max_context)
-        other_labels = [label for label in all_labels if label not in best_label]
-        post_cont = post_context[:,1, list(best_label) + other_labels]
+        post_context = post_context[:,1,:]
         for k in range(max_context):
-            df[k] = post_cont[:,k]
+            df[k] = post_context[:,k]
         
         df[max_context+1] = novel_context[:,1]
         df["nb"] = na
@@ -599,8 +566,8 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
         df["phase"] = training_protocol
         df["h"] = h
         df["K"] = agent.K
-        uniform = (post_cont>0)*np.ones([TAU, max_context])/K[:-1][:,None]
-        df["entropy"] = np.nan_to_num(post_cont*np.log(post_cont/uniform)).sum(axis=1)
+        uniform = (post_context>0)*np.ones([TAU, max_context])/K[:-1][:,None]
+        df["entropy"] = np.nan_to_num(post_context*np.log(post_context/uniform)).sum(axis=1)
         df["choice"]  = agent.actions[:,0]
         # df["nth_trial"] = np.tile(np.tile(np.arange(switch),nb)+1, repeats)
 
@@ -610,7 +577,7 @@ print(f"\n\n total: {(np.array(learned_correct) > 0.8).sum()/n_sims}")
 df_big = pd.concat(dfs).reset_index()
 
 
-## ACCURACY
+# ACCURACY
 
 if plot_avg_context_accuracy:
     df = df_big.copy()
@@ -633,64 +600,47 @@ if plot_avg_context_accuracy:
 
 
 
-#%% CONTEXT POSTERIOR MANY AGENTS
+##CONTEXT POSTERIOR MANY AGENTS
 
-if True:
+if plot_avg_context_posterior:
     df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K", "nb"], var_name="context", value_name="post_context")
     cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
     # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
 
 
 
-for h in hs:
-    fig, axes = plt.subplots(number_of_bandits.size, 5, dpi=300, figsize=(12,3), sharey=True)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
-    # axes = axes.flatten()
-    plt.tight_layout()
-    # plt.subplots_adjust(wspace=0.4,hspace=0.5)
+    for h in hs:
+        fig, axes = plt.subplots(number_of_bandits.size, 5, dpi=300, figsize=(12,7), sharey=True)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
+        # axes = axes.flatten()
+        plt.tight_layout()
+        # plt.subplots_adjust(wspace=0.4,hspace=0.5)
 
-    for j in range(number_of_bandits.size):
-        if number_of_bandits.size == 1:
-            axes = np.array([axes])
-        axes[j,0].set_ylabel(f"Bandits={number_of_bandits[j]}", fontsize=14)
-        for i in range(number_of_bandits[j]+1):
-            axes[j,i].grid(axis="x", alpha=0.7)
-            axes[j,i].set_xlabel("trial",fontsize=14)
-            axes[j,i].set_ylim([-0.05,1.05])
-            axes[j,i].tick_params(axis="x", labelrotation=40)
-            axes[j,i].xaxis.set_major_locator(MultipleLocator(switch))
-    
-            if not i == number_of_bandits[j]:
-                sns.lineplot(ax=axes[j,i], data=df.query(f"h=={h} & context=={i} & nb=={number_of_bandits[j]} "), x="index",y="post_context", color=cols[i], errorbar="se")
-            else:
-                for ax in axes[j,i:4]:
-                    ax.set_visible(False)
-                    ax.title.set_visible(True)
-                sns.lineplot(ax=axes[j,4], data=df.query(f"h=={h} & context=={max_context+1} & nb=={number_of_bandits[j]} "), x="index", y="post_context", color="grey", errorbar="se")
-            
+        for j in range(number_of_bandits.size):
+            if number_of_bandits.size == 1:
+                axes = np.array([axes])
+            axes[j,0].set_ylabel(f"Bandits={number_of_bandits[j]}", fontsize=14)
+            for i in range(number_of_bandits[j]+1):
+                axes[j,i].grid(axis="x", alpha=0.7)
+                axes[j,i].set_xlabel("trial",fontsize=14)
+                axes[j,i].set_ylim([-0.05,1.05])
+                axes[j,i].tick_params(axis="x", labelrotation=40)
+                axes[j,i].xaxis.set_major_locator(MultipleLocator(switch))
+        
+                if not i == number_of_bandits[j]:
+                    sns.lineplot(ax=axes[j,i], data=df.query(f"h=={h} & context=={i} & nb=={number_of_bandits[j]} "), x="index",y="post_context", color=cols[i], errorbar="se")
+                else:
+                    for ax in axes[j,i:4]:
+                        ax.set_visible(False)
+                        ax.title.set_visible(True)
+                    sns.lineplot(ax=axes[j,4], data=df.query(f"h=={h} & context=={max_context+1} & nb=={number_of_bandits[j]} "), x="index", y="post_context", color="grey", errorbar="se")
+                
 
-    for i in range(5):
-        axes[0,i].set_title(f"Context {i+1}", fontsize=14)
-        if i == 5-1:
-            axes[0,i].set_title(f"Novel Context", fontsize=14)
-    
-    # fig.delaxes([axes[0,2]])
-    # fig.delaxes([axes[0,3]])
-    # fig.delaxes([axes[1,3]])
+        for i in range(5):
+            axes[0,i].set_title(f"Context {i+1}", fontsize=14)
+            if i == 5-1:
+                axes[0,i].set_title(f"Novel Context", fontsize=14)
 
-# ,axes[0,3], axes[1,3]
-    # fig, axes = plt.subplots(1,1,figsize=(2.363*1.3, 1.687*1.3),dpi=300)
-    # plt.tight_layout()
-    # # plt.subplots_adjust(wspace=0.4,hspace=0.4)
-    # axes.grid(axis="x", alpha=0.7)
-    # axes.set_xlabel("trial",fontsize=14)
-    # axes.xaxis.set_major_locator(MultipleLocator(switch))
-    # axes.set_ylim([-0.05,1.05])
-    # axes.tick_params(axis="x", labelrotation=40)
-
-    # axes.xaxis.set_major_locator(MultipleLocator(switch))
-
-
-
+#
 
 
 ## CONTEXT POSTERIOR MANY AGENTS
@@ -735,64 +685,72 @@ for h in hs:
 
 
 
-###############################
-# for h in [70]:
-#     fig, axes = plt.subplots(int(np.ceil(na/2)),2,dpi=300)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
-#     axes = axes.flatten()
-#     plt.tight_layout()
-#     plt.subplots_adjust(wspace=0.4,hspace=0.5)
-#     for i in range(na):
-#         axes[i].grid(axis="x", alpha=0.7)
-#         sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={i}"), x="index",y="post_context", color=cols[i], errorbar="se")
-#         axes[i].set_ylabel(f"Posterior Context {i+1}",fontsize=14)
-#         axes[i].set_xlabel("trial",fontsize=14)
-#         axes[i].xaxis.set_major_locator(MultipleLocator(switch))
-#         axes[i].set_ylim([-0.05,1.05])
-#         axes[i].tick_params(axis="x", labelrotation=40)
+
+# Plot effect of habitual tendency on relative context entropy
+
+if plot_avg_context_entropy_and_accuracy:
+    df = df_big.copy().query(f"nb == {number_of_bandits[0]}")
+    df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
+
+    fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
+    plt.tight_layout()
+    plt.subplots_adjust(wspace=0.4)
+    grouped = df.groupby(["h", "phase","context"])["post_context"].mean()
+
+    # mean_post = np.zeros(hs.size)
+    # for hi, h in enumerate(hs):
+    #     for k in range(na):
+    #         mean_post[hi] += (grouped[h,k,k,number_of_bandits[0]])
+    # mean_post /= na
 
 
-#     fig, axes = plt.subplots(1,1,figsize=(2.363*1.3, 1.687*1.3),dpi=300)
-#     plt.tight_layout()
-#     # plt.subplots_adjust(wspace=0.4,hspace=0.4)
-#     axes.grid(axis="x", alpha=0.7)
-#     sns.lineplot(ax=axes, data=df.query(f"h=={70} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
-#     axes.set_ylabel(f"Posterior Novel\nContext", fontsize=14)
-#     axes.set_xlabel("trial",fontsize=14)
-#     axes.xaxis.set_major_locator(MultipleLocator(switch))
-#     axes.set_ylim([-0.05,1.05])
-#     axes.tick_params(axis="x", labelrotation=40)
+    # ax[0].plot(hs[1:],mean_post[1:], '-o')
+    # ax[0].set_ylabel(r"Mean $p(c_t=c_{true}|o)$",fontsize=14)
+    # ax[0].set_xlabel(r"Habitual Tendency counts $h_0$",fontsize=14)
+    # # ax[0].set_ylim([0.86,1])
+    # ax[0].set_xticks(np.arange(10,200,20))
 
-#     axes.xaxis.set_major_locator(MultipleLocator(switch))
+    ax[0].plot(np.log(hs), (df_big.groupby(["h"])["entropy"]).mean().to_numpy(),"-o")
+    ax[0].set_xlabel(r"Habitual Tendency counts $\ln h_0$",fontsize=14)
+    ax[0].set_ylabel(f"Context relative entropy", fontsize=14)
 
-#%% Plot effect of habitual tendency on relative context entropy
-df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
-
-fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
-plt.tight_layout()
-plt.subplots_adjust(wspace=0.4)
-grouped = df.groupby(["h", "phase","context"])["post_context"].mean()
-
-mean_post = np.zeros(hs.size)
-for hi, h in enumerate(hs):
-    for k in range(na):
-        mean_post[hi] += (grouped[h,k,k])
-mean_post /= na
-
-
-ax[0].plot(hs[1:],mean_post[1:], '-o')
-ax[0].set_ylabel(r"Mean $p(c_t=c_{true}|o)$",fontsize=14)
-ax[0].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
-# ax[0].set_ylim([0.86,1])
-ax[0].set_xlim([2,202])
-ax[1].plot(hs[1:], df_big.groupby(["h"])["entropy"].mean()[1:],"-o")
-ax[1].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
-ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
-# ax[1].set_ylim([0.3, 0.65])
-# ax[1].set_xlim([2,202])
-# plt.ylim([0,0.2])
+    df = df_big.copy().query(f"nb == {number_of_bandits[0]}")
+    df["correct"] = df["choice"] == df["phase"]
+    grouped = df.groupby(by=["h","agent"])["correct"].mean()
+    mean_accuracy = grouped.groupby(level=["h"]).mean()
+    ax[1].plot(np.log(hs), mean_accuracy.to_numpy(),"-o")
+    ax[1].set_xlabel(r"Habitual Tendency counts $\ln h_0$",fontsize=14)
+    ax[1].set_ylabel(f"Mean accuracy", fontsize=14)
+    # plt.ylim([0,0.2])
 
 
 
+
+    # df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
+
+    # fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
+    # plt.tight_layout()
+    # plt.subplots_adjust(wspace=0.4)
+    # grouped = df.groupby(["h", "phase","context"])["post_context"].mean()
+
+    # mean_post = np.zeros(hs.size)
+    # for hi, h in enumerate(hs):
+    #     for k in range(na):
+    #         mean_post[hi] += (grouped[h,k,k])
+    # mean_post /= na
+
+
+    # ax[0].plot(hs[1:],mean_post[1:], '-o')
+    # ax[0].set_ylabel(r"Mean $p(c_t=c_{true}|o)$",fontsize=14)
+    # ax[0].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
+    # # ax[0].set_ylim([0.86,1])
+    # ax[0].set_xlim([2,202])
+    # ax[1].plot(hs[1:], df_big.groupby(["h"])["entropy"].mean()[1:],"-o")
+    # ax[1].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
+    # ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
+    # # ax[1].set_ylim([0.3, 0.65])
+    # # ax[1].set_xlim([2,202])
+    # # plt.ylim([0,0.2])
 
 #%%
 # f, ax = plot_rewards_heatmap([reward_generation_matrix[:-1,:-1,c] for c in range(na)])
