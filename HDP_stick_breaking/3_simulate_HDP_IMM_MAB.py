@@ -155,38 +155,26 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
     plt.show()
 
 # Task setup parameters
-na = 4
-nb = na
-ns = nb+1
-no = ns
-nco = na
-nr = 3
-nc = 0
-nt = na  # number of template contexts!
-max_context = 7
-T = 2
-npi = na**(T-1)
+
 
 
 plot_rewards = False
 plot_transition_matrix = False
-plot_context = True
+plot_context = False
 plot_context_obs = False
 plot_choice = False
 plot_messages = False
 
+plot_avg_context_posterior = False
+plot_avg_context_accuracy= True
+
 use_context_obs = False
-use_template = True
+use_template = False
 debug = False
 dpi = 100
 
-switch = 100
+switch = 300
 repeats = 2
-training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
-# training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
-
-# plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
-TAU = training_protocol.size
 
 
 
@@ -197,10 +185,11 @@ approx_pred_rew = True
 # I think for these parametrisations worked for 2/3/4 bandits
 # for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
 # I potentially also played around with the self-transition bias in the extra column as wel.
-gammas = np.array([800])       # global prior context opening tendency
-alphas = np.array([15])        # local  prior context opening tendency
-kappas = np.array([100])       # self-transition bias
-hs =     np.array([70]) #1,2,3,4,5,6,7,8,9,10,20,40,50]) # np.arange(10,200,10)  # 
+number_of_bandits = np.array([4])
+gammas = np.array([850])       # global prior context opening tendency
+alphas = np.array([30])        # local  prior context opening tendency
+kappas = np.array([250])       # self-transition bias
+hs =     np.array([70,1000])     #1,2,3,4,5,6,7,8,9,10,20,40,50]) # np.arange(10,200,10)  # 
 
 gamma_init = 1000
 cap = 100000
@@ -213,11 +202,11 @@ cap = 100000
 # kappas = np.array([total_counts*(1-prop)])  # 250])
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])       # local prior counts forgetting rate 
-# cap = 70
+    # cap = 70
 # gamma_init = 1
 
 
-sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global)
+sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global, number_of_bandits)
 reps = 20 # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*reps
@@ -231,8 +220,25 @@ learned_correct = []
 
 dfs = []
 
-for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:  
+for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:  
     for rep in range(reps):
+
+        nb = na
+        ns = nb+1
+        no = ns
+        nco = na
+        nr = 3
+        nc = 0
+        nt = na  # number of template contexts!
+        max_context = 7
+        T = 2
+        npi = na**(T-1)
+        training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
+        # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
+
+        # plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
+        TAU = training_protocol.size
+
 
         ####### Setup simulation
         
@@ -507,7 +513,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             for c in range(data.K):
                 ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=1)
 
-            ax.plot(novel_context[:,1], 'gray', label=f"Template\ncontext")
+            ax.plot(novel_context[:,1], 'gray', label=f"Novel\ncontext")
 
 
             for i, ind in enumerate(new_context):
@@ -588,6 +594,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
             df[k] = post_cont[:,k]
         
         df[max_context+1] = novel_context[:,1]
+        df["nb"] = na
         df["agent"] = np.ones(TAU)*rep
         df["phase"] = training_protocol
         df["h"] = h
@@ -603,52 +610,74 @@ print(f"\n\n total: {(np.array(learned_correct) > 0.8).sum()/n_sims}")
 df_big = pd.concat(dfs).reset_index()
 
 
-#%% ACCURACY
-df = df_big.copy()
+## ACCURACY
 
-df["chose_correct"] = df["choice"] == df["phase"]
-df['trial_n'] = df.groupby(['agent','h','phase']).cumcount() + 1
-df['cum_correct'] = df.groupby(['agent','h','phase'])['chose_correct'].cumsum()
-df['cum_accuracy'] = df['cum_correct'] / df['trial_n']
+if plot_avg_context_accuracy:
+    df = df_big.copy()
 
-fig, axes = plt.subplots(int(np.ceil(na/2)),2,dpi=300)
-plt.tight_layout()
-axes = axes.flatten()
-for ai, ax in enumerate(axes):
-    sns.lineplot(ax=ax, data=df.query(f"phase == {ai}"), x="trial_n", y="cum_accuracy",\
-                 hue="h", errorbar="se")
-    ax.set_ylabel("Cummulative accuracy")
-    ax.set_xlabel("Trial")
-    ax.set_title(f"Context {ai+1}")
-    ax.legend(title=r"$\alpha_{init}$")
+    df["chose_correct"] = df["choice"] == df["phase"]
+    df['trial_n'] = df.groupby(['agent','h','phase']).cumcount() + 1
+    df['cum_correct'] = df.groupby(['agent','h','phase'])['chose_correct'].cumsum()
+    df['cum_accuracy'] = df['cum_correct'] / df['trial_n']
+
+    fig, axes = plt.subplots(int(np.ceil(na/2)),2,dpi=300)
+    plt.tight_layout()
+    axes = axes.flatten()
+    for ai, ax in enumerate(axes):
+        sns.lineplot(ax=ax, data=df.query(f"phase == {ai}"), x="trial_n", y="cum_accuracy",\
+                    hue="h", errorbar="se")
+        ax.set_ylabel("Cummulative accuracy")
+        ax.set_xlabel("Trial")
+        ax.set_title(f"Context {ai+1}")
+        ax.legend(title=r"$\alpha_{init}$")
+
+
+
 #%% CONTEXT POSTERIOR MANY AGENTS
 
-df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
-cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
-# cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
+if True:
+    df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K", "nb"], var_name="context", value_name="post_context")
+    cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
+    # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
 
 
 
 for h in hs:
-    fig, axes = plt.subplots(1,na+1,dpi=300,figsize=(12,2),sharey=True)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
-    axes = axes.flatten()
-    axes[0].set_ylabel(f"Posterior Context", fontsize=14)
+    fig, axes = plt.subplots(number_of_bandits.size, 5, dpi=300, figsize=(12,3), sharey=True)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
+    # axes = axes.flatten()
     plt.tight_layout()
     # plt.subplots_adjust(wspace=0.4,hspace=0.5)
-    for i in range(na+1):
-        axes[i].grid(axis="x", alpha=0.7)
-        axes[i].set_xlabel("trial",fontsize=14)
-        axes[i].set_ylim([-0.05,1.05])
-        axes[i].tick_params(axis="x", labelrotation=40)
-        axes[i].xaxis.set_major_locator(MultipleLocator(switch))
-        
-        if not i == na:
-            axes[i].set_title(f"Context {i+1}", fontsize=14)
-            sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={i}"), x="index",y="post_context", color=cols[i], errorbar="se")
-        else:
-            sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
-            axes[i].set_title(f"Novel Context", fontsize=14)
 
+    for j in range(number_of_bandits.size):
+        if number_of_bandits.size == 1:
+            axes = np.array([axes])
+        axes[j,0].set_ylabel(f"Bandits={number_of_bandits[j]}", fontsize=14)
+        for i in range(number_of_bandits[j]+1):
+            axes[j,i].grid(axis="x", alpha=0.7)
+            axes[j,i].set_xlabel("trial",fontsize=14)
+            axes[j,i].set_ylim([-0.05,1.05])
+            axes[j,i].tick_params(axis="x", labelrotation=40)
+            axes[j,i].xaxis.set_major_locator(MultipleLocator(switch))
+    
+            if not i == number_of_bandits[j]:
+                sns.lineplot(ax=axes[j,i], data=df.query(f"h=={h} & context=={i} & nb=={number_of_bandits[j]} "), x="index",y="post_context", color=cols[i], errorbar="se")
+            else:
+                for ax in axes[j,i:4]:
+                    ax.set_visible(False)
+                    ax.title.set_visible(True)
+                sns.lineplot(ax=axes[j,4], data=df.query(f"h=={h} & context=={max_context+1} & nb=={number_of_bandits[j]} "), x="index", y="post_context", color="grey", errorbar="se")
+            
+
+    for i in range(5):
+        axes[0,i].set_title(f"Context {i+1}", fontsize=14)
+        if i == 5-1:
+            axes[0,i].set_title(f"Novel Context", fontsize=14)
+    
+    # fig.delaxes([axes[0,2]])
+    # fig.delaxes([axes[0,3]])
+    # fig.delaxes([axes[1,3]])
+
+# ,axes[0,3], axes[1,3]
     # fig, axes = plt.subplots(1,1,figsize=(2.363*1.3, 1.687*1.3),dpi=300)
     # plt.tight_layout()
     # # plt.subplots_adjust(wspace=0.4,hspace=0.4)
@@ -659,6 +688,50 @@ for h in hs:
     # axes.tick_params(axis="x", labelrotation=40)
 
     # axes.xaxis.set_major_locator(MultipleLocator(switch))
+
+
+
+
+
+## CONTEXT POSTERIOR MANY AGENTS
+
+# if plot_avg_context_posterior:
+#     df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
+#     cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
+#     # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
+
+
+
+# for h in hs:
+#     fig, axes = plt.subplots(1,na+1,dpi=300,figsize=(12,2),sharey=True)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
+#     axes = axes.flatten()
+#     axes[0].set_ylabel(f"Posterior Context", fontsize=14)
+#     plt.tight_layout()
+#     # plt.subplots_adjust(wspace=0.4,hspace=0.5)
+#     for i in range(na+1):
+#         axes[i].grid(axis="x", alpha=0.7)
+#         axes[i].set_xlabel("trial",fontsize=14)
+#         axes[i].set_ylim([-0.05,1.05])
+#         axes[i].tick_params(axis="x", labelrotation=40)
+#         axes[i].xaxis.set_major_locator(MultipleLocator(switch))
+        
+#         if not i == na:
+#             axes[i].set_title(f"Context {i+1}", fontsize=14)
+#             sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={i}"), x="index",y="post_context", color=cols[i], errorbar="se")
+#         else:
+#             sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
+#             axes[i].set_title(f"Novel Context", fontsize=14)
+
+#     # fig, axes = plt.subplots(1,1,figsize=(2.363*1.3, 1.687*1.3),dpi=300)
+#     # plt.tight_layout()
+#     # # plt.subplots_adjust(wspace=0.4,hspace=0.4)
+#     # axes.grid(axis="x", alpha=0.7)
+#     # axes.set_xlabel("trial",fontsize=14)
+#     # axes.xaxis.set_major_locator(MultipleLocator(switch))
+#     # axes.set_ylim([-0.05,1.05])
+#     # axes.tick_params(axis="x", labelrotation=40)
+
+#     # axes.xaxis.set_major_locator(MultipleLocator(switch))
 
 
 

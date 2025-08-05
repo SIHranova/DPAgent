@@ -173,7 +173,7 @@ plot_context_obs = False
 plot_choice = False 
 plot_messages = False
 
-debug = True
+debug = False
 switch = 100
 repeats = 2
 training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
@@ -206,7 +206,7 @@ rho_local = np.array([1])      # local prior counts forgetting rate
 # rho_global = np.array([1])     # global prior counts forgetting rate
 # rho_local = np.array([1])
 
-gamma_init = 30
+gamma_init = 20
 gammas = np.array([0.1])       # global prior context opening tendency
 alphas = np.array([9])         # local  prior context opening tendency
 kappas = np.array([10])        # self-transition bias
@@ -215,7 +215,7 @@ rho_local = np.array([1])
 
 
 sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 1  # how many times to run simulation with same params
+reps = 5  # how many times to run simulation with same params
 
 
 sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
