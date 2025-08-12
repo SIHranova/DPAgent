@@ -158,7 +158,7 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
 
 plot_rewards = False
 plot_transition_matrix = False
-plot_context = False
+plot_context = True
 plot_context_obs = False
 plot_choice = False
 plot_messages = False
@@ -174,8 +174,6 @@ dpi = 100
 switch = 300
 repeats = 2
 
-
-
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
@@ -188,7 +186,7 @@ number_of_bandits = np.array([4])
 gammas = np.array([850])       # global prior context opening tendency
 alphas = np.array([30])        # local  prior context opening tendency
 kappas = np.array([250])       # self-transition bias
-hs =     np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
+hs =     np.array([10000])     # np.floor(np.exp(np.arange(1,9.5,0.25)))  # 
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 
 

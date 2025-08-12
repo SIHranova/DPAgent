@@ -33,7 +33,7 @@ class MultiArmedBandit():
 
         self.TAU = TAU
         self.T = T
-        self.nb = n_bandits
+        self.initial_state = n_bandits
 
         if observation_generation_matrix is None:
             self.observation_generation_matrix = np.eye(self.ns)
@@ -76,6 +76,73 @@ class MultiArmedBandit():
     def initialize_hidden_state(self, tau, starting_state=2):
         self.states[tau,0] = starting_state
         return starting_state
+
+
+class GridWorld(object):
+
+    def __init__(self, Omega, Theta, Rho, training_protocol,
+                 TAU = 1, T = 10, initial_state = 2, context_observation_generation_matrix = None,
+                 no=None, nr=None):
+
+        #set probability distribution used for generating observations
+        self.Omega = Omega.copy()
+
+        #set probability distribution used for generating rewards
+        self.Rho = Rho.copy()
+
+        #set probability distribution used for generating state transitions
+        self.Theta = Theta.copy()
+
+        #set container that keeps track the evolution of the hidden states
+        self.hidden_states = np.zeros((TAU, T), dtype = int)
+        self.rewards = np.zeros([TAU,T],dtype=int)
+        self.actions = np.zeros([TAU, T-1],dtype=int)
+        self.observations = np.zeros([TAU,T],dtype=int)
+
+        #set intial state
+        self.initial_state = initial_state
+
+        self.training_protocol = training_protocol
+
+        self.TAU = TAU
+        self.T = T
+        self.context_observation_generation_matrix = context_observation_generation_matrix
+        self.nco = context_observation_generation_matrix.shape[0]
+        self.context_observations = np.zeros([TAU,T],dtype=int)
+        self.no = no
+        self.nr = nr
+        self.ns = self.Theta.shape[1]  # number of hidden states
+
+
+    def initialize_hidden_state(self, tau, starting_state=None):
+        #start in lower corner
+        self.hidden_states[tau, 0] = starting_state
+        return self.initial_state
+       
+    def generate_observation(self, t, tau, state):
+        #generate one sample from multinomial distribution
+        o = np.random.multinomial(1, self.Omega[:, state]).argmax()
+        return o
+    
+    def sample_reward(self,t,tau, state):
+        #generate one sample from multinomial distribution
+        regime = self.training_protocol[tau]
+
+        if tau == 102:
+            a=0
+        r = np.random.choice(self.Rho.shape[0], p = self.Rho[:, state, regime])
+        return r
+    
+    def sample_hidden_state(self, t, tau, action):
+        self.actions[tau,t-1] = action
+        self.hidden_states[tau,t] = np.random.choice(np.arange(self.ns), p=self.Theta[:,self.hidden_states[tau, t-1], action])
+        
+        return self.hidden_states[tau,t]
+        
+    def generate_context_observation(self, t, tau, context):
+        self.context_observations[tau,t] = np.random.choice(np.arange(self.nco), p=self.context_observation_generation_matrix[:,context])
+        return self.context_observations[tau,t]
+
 
 class SpeakerDiscretizationEnvironment():
     """

@@ -22,14 +22,14 @@ class World():
             for t in range(self.T):
                 if t == 0:
                     action=None
-                    state = self.environment.initialize_hidden_state(tau, starting_state=self.environment.nb)
+                    state = self.environment.initialize_hidden_state(tau, starting_state=self.environment.initial_state)
                 else:
                     state = self.environment.sample_hidden_state(t, tau, action)
 
                 observation = self.environment.generate_observation(t,tau,state)
                 context_obs = self.environment.generate_context_observation(t, tau, self.training_protocol[tau])
                 reward = self.environment.sample_reward(t, tau, state)
-                
+                # print(observation, reward)
                 self.agent.update_beliefs(t, tau, state, reward, action, observation, context_obs)
 
                 if t < self.T-1:

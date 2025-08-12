@@ -1183,7 +1183,8 @@ class HDP_IMM():
         self.cap = cap
         self.use_template = use_template
         self.duplicates = []
-        self.template_copy = template_context_contingencies.copy()
+        if not template_context_contingencies is None:
+            self.template_copy = template_context_contingencies.copy()
 
 
     def initialize_beliefs(self):
@@ -1366,8 +1367,8 @@ class HDP_IMM():
     def update_beliefs_policies(self,t,tau):
         
         likelihood = np.zeros([self.npi, self.max_context])
-        R = (self.prior_rewards[tau]*self.ln(self.prior_rewards[tau])).sum(axis=0)[:,None,None,:]
-        information_gain = (self.posterior_states[tau,t]*R).sum(axis=0)[-1,:,:]#.sum(axis=0)
+        # R = (self.prior_rewards[tau]*self.ln(self.prior_rewards[tau])).sum(axis=0)[:,None,None,:]
+        # information_gain = (self.posterior_states[tau,t]*R).sum(axis=0)[-1,:,:]#.sum(axis=0)
         likelihood[:,:self.K+1] = self.fwd_norms.prod(axis=0)#*np.exp(information_gain[:,:self.K+1])
         posterior_policies  = np.power(likelihood,self.dec_temp)*self.prior_policies[tau]
         posterior_policies /= posterior_policies.sum(axis=0)
@@ -1392,9 +1393,14 @@ class HDP_IMM():
             policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
             policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
             obs_surprise     = self.ln(self.prior_context_observation[tau,context_obs])
-            
+
             context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise + self.use_context_obs*obs_surprise)
             context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
+            # print(f"tau:{tau}, t:{t}")
+            # print(f"outcome_surprise:{outcome_surprise[:3]}")
+            # print(f"policy_entropy  :{policy_entropy[:3]}")
+            # print(f"policy_surprise :{policy_surprise[:3]}")
+            # print(f"context_like    :{context_likelihood[:3]}, {np.exp(context_likelihood[:3])}")
         
         else:
             context_likelihood = np.zeros(self.max_context)
@@ -1410,7 +1416,10 @@ class HDP_IMM():
             obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
             q_z = np.array([self.digamma_approximation(self.global_prior_counts[tau-1]), self.global_prior])
 
-
+        # if t==0:
+        #     print("\n")
+        # if tau == 105:
+        #     a=0
         obs_messages = q_z*obs_messages # obs_messages # self.ln(q_z) + obs_messages #   
         
         # if len(self.duplicates) != 0:
@@ -1471,14 +1480,14 @@ class HDP_IMM():
         if t == self.T-1:
             
             ########## 2. sample context and create new stick breaks and atoms if necessary 
-            shift = 0 if tau < 20 else tau - 20
+            # shift = 0 if tau < 20 else tau - 20
 
             # if tau == 0 or not np.any(self.opened_new_context[shift:tau]):
             #     current_context = np.argmax(q_c)
             # else:
             #     current_context = np.argmax(q_c[:self.K])            
 
-            if q_c[self.K] >= 0.5:
+            if q_c[self.K] >= 0.5: #if np.any(self.posterior_context[tau,:,self.K] >= 0.5): # 
                 current_context = self.K
             else: 
                 current_context = np.argmax(q_c[:self.K])
@@ -1513,7 +1522,7 @@ class HDP_IMM():
                     # print(self.prior_rewards_counts[tau,:,:,self.K-1].round())
                 else:
                     self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
-                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H + np.random.uniform(size = self.lambda_H.shape)
+                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H # + np.random.uniform(size = self.lambda_H.shape)
 
 
                 # add prior over new atom \theta_k
@@ -1558,7 +1567,7 @@ class HDP_IMM():
             ### 3.2 update reward probability params phi q(phi|lambda)
 
             self.prior_rewards_counts[tau+1] = self.prior_rewards_counts[tau].copy()
-            for obs, state in zip(self.observations[tau,1:], states[1:]):
+            for reward, state in zip(self.rewards[tau,1:], states[1:]):
                 self.prior_rewards_counts[tau+1, reward, state, :self.K] += q_c[:self.K]
             
             if self.approx_pred_rew:
@@ -1596,22 +1605,22 @@ class HDP_IMM():
             self.prior_context_observation_counts[tau+1,context_obs,:] += q_c
             self.prior_context_observation[tau+1] = self.digamma_approximation(self.prior_context_observation_counts[tau+1])
 
-            modes = []
-            for p in range(self.K):
-                modes.append(np.argmax(self.prior_rewards[tau+1,:,:,p],axis=0))
+            # modes = []
+            # for p in range(self.K):
+            #     modes.append(np.argmax(self.prior_rewards[tau+1,:,:,p],axis=0))
                 
-            self.duplicates = []
-            for mi, mode in enumerate(modes):
-                for ci, comparison in enumerate(modes):
-                    if np.all(mode == comparison) and mi < ci and ci not in self.duplicates:
-                        self.duplicates.append(ci)
+            # self.duplicates = []
+            # for mi, mode in enumerate(modes):
+            #     for ci, comparison in enumerate(modes):
+            #         if np.all(mode == comparison) and mi < ci and ci not in self.duplicates:
+            #             self.duplicates.append(ci)
 
-            if len(self.duplicates) != 0:
-                a = 0
+            # if len(self.duplicates) != 0:
+            #     a = 0
                 
         ######### Print inferred beliefs
         if self.debug:
-            if tau < 10000:
+            if tau > 98:
                 if self.opened_new_context[tau+1]:
                     self.K -= 1
                 print(f"--------------------\ntau,t: {tau,t}")
