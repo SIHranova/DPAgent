@@ -1522,7 +1522,7 @@ class HDP_IMM():
                     # print(self.prior_rewards_counts[tau,:,:,self.K-1].round())
                 else:
                     self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
-                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H # + np.random.uniform(size = self.lambda_H.shape)
+                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H + np.random.uniform(size = self.lambda_H.shape)
 
 
                 # add prior over new atom \theta_k
