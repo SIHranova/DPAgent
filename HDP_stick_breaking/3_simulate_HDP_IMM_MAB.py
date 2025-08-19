@@ -165,11 +165,11 @@ plot_messages = False
 
 
 plot_example_rewards = False
-plot_avg_context_posterior = False
+plot_avg_context_posterior = True
 plot_avg_context_accuracy= False
 plot_avg_context_entropy_and_accuracy = True
 use_context_obs = False
-use_template = False
+use_template = True
 debug = False
 dpi = 100
 
@@ -183,12 +183,12 @@ approx_pred_rew = True
 # for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
 # I potentially also played around with the self-transition bias in the extra column as wel.
 
-number_of_bandits = np.array([4])
+number_of_bandits = np.array([2,3,4])
 gammas = np.array([850])      # global prior context opening tendency
-switch = np.array([300])
+switch = np.array([100,100,100])
 alphas = np.array([30])        # local  prior context opening tendency
 kappas = np.array([250])       # self-transition bias
-hs =     np.floor(np.exp(np.arange(1,9.5,0.25)))  #  np.array([10000])     # 
+hs =     np.array([10000])  #np.floor(np.exp(np.arange(1,9.5,0.25)))  #  np.array([10000])     # 
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 
 
@@ -630,8 +630,7 @@ if plot_avg_context_accuracy:
         ax.legend(title=r"$\alpha_{init}$")
 
 
-
-##CONTEXT POSTERIOR MANY AGENTS
+#%%#CONTEXT POSTERIOR MANY AGENTS
 
 if plot_avg_context_posterior:
     df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K", "nb"], var_name="context", value_name="post_context")
@@ -644,7 +643,7 @@ if plot_avg_context_posterior:
     context_titles = ["Novel Context", "Context 1", "Context 2", "Context 3", "Context 4"]
 
     for h in hs:
-        fig, axes = plt.subplots(number_of_bandits.size, ncols, dpi=300, figsize=(ncols*3, nrows*3), sharey=True)
+        fig, axes = plt.subplots(number_of_bandits.size, ncols, dpi=300, figsize=(ncols*3, nrows*3.), sharey=True)
         plt.tight_layout()
         plt.subplots_adjust(hspace=0.6)
 
@@ -686,13 +685,26 @@ if plot_avg_context_posterior:
                 ax.set_title(title, fontsize=25, pad=20, color="grey")
             else:
                 ax.set_title(title, fontsize=25, pad=20, color=cols[col_idx-1])
-
     row_titles = ["M=2", "M=3", "M=4"]
+    panel_labels = ["A", "B", "C"]
 
-    # Add row titles to the left of each row, but keep y-labels for subplots
-    for row_idx, title in enumerate(row_titles):
+    # Add row titles and panel labels to the left of each row
+    for row_idx, (title, panel) in enumerate(zip(row_titles, panel_labels)):
         ax = axes[row_idx, 0]
-        # Add a second y-label using ax.annotate for the row title
+        # Panel label at top left corner of each row
+        ax.annotate(
+            panel,
+            xy=(-0.18, 1.08),  # Top left corner, outside axes
+            xycoords='axes fraction',
+            fontsize=28,
+            fontweight='bold',
+            ha='left',
+            va='top',
+            annotation_clip=False,
+            xytext=(-60, 0),
+            textcoords='offset points'
+        )
+        # Row title below panel label, left side
         ax.annotate(
             title,
             xy=(-0.2, 0.5),
@@ -706,53 +718,92 @@ if plot_avg_context_posterior:
             xytext=(-60, 0),
             textcoords='offset points'
         )
-## CONTEXT POSTERIOR MANY AGENTS
 
+# FOR TEMPLATE
 # if plot_avg_context_posterior:
-#     df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
+#     df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K", "nb"], var_name="context", value_name="post_context")
 #     cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 #     # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
 
+#     ncols = 5
+#     nrows = number_of_bandits.size
+
+#     context_titles = ["Novel Context", "Context 1", "Context 2", "Context 3", "Context 4"]
+
+#     for h in hs:
+#         fig, axes = plt.subplots(number_of_bandits.size, ncols, dpi=300, figsize=(ncols*3, nrows*3), sharey=True)
+#         plt.tight_layout()
+#         plt.subplots_adjust(hspace=0.6)
+
+#         for j in range(number_of_bandits.size):
+#             if number_of_bandits.size == 1:
+#                 axes = np.array([axes])
+#             axes[j,0].set_ylabel("Posterior Context", fontsize=22, labelpad=10)
+
+#             # Plot regular contexts in columns 1-4
+#             for i in range(0, number_of_bandits[j]+1):
+#                 if i==0:
+#                     sns.lineplot(
+#                         ax=axes[j,0],
+#                         data=df.query(f"h=={h} & context=={max_context+1} & nb=={number_of_bandits[j]}"),
+#                         x="index", y="post_context", color="grey", errorbar="se"
+#                     )
+#                 else:
+#                     sns.lineplot(
+#                         ax=axes[j,i],
+#                         data=df.query(f"h=={h} & context=={i-1} & nb=={number_of_bandits[j]}"),
+#                         x="index", y="post_context", color=cols[i-1], errorbar="se"
+#                     )
+#                 axes[j,i].grid(axis="x", which="both", alpha=0.7)
+#                 axes[j,i].set_xlabel("trial", fontsize=22)
+#                 axes[j,i].set_ylim([-0.05,1.05])
+#                 axes[j,i].tick_params(axis="x", labelrotation=35, labelsize=20)
+#                 axes[j,i].tick_params(axis="y", labelsize=22)
+#                 # axes[j,i].xaxis.set_minor_locator(MultipleLocator(switch[j]))
+#                 axes[j,i].xaxis.set_major_locator(MultipleLocator(switch[j]*2))   # x-labels every switch[j]*2
+#                 axes[j,i].xaxis.set_minor_locator(MultipleLocator(switch[j]))     # grid lines every switch[j]
+#             # Hide unused axes
+#             for ax in axes[j,number_of_bandits[j]+1:]:
+#                 ax.axis('off')
+
+#         # Add context titles above the top row, colored by seaborn palette and larger font
+#         for col_idx, title in enumerate(context_titles):
+#             ax = axes[0, col_idx]
+#             if col_idx == 0:
+#                 ax.set_title(title, fontsize=25, pad=20, color="grey")
+#             else:
+#                 ax.set_title(title, fontsize=25, pad=20, color=cols[col_idx-1])
+
+#     row_titles = ["M=2", "M=3", "M=4"]
+
+#     # Add row titles to the left of each row, but keep y-labels for subplots
+#     ax = axes[row_idx, 0]
+#     # Add a second y-label using ax.annotate for the row title
+#     ax.annotate(
+#         title,
+#         xy=(-0.2, 0.5),
+#         xycoords='axes fraction',
+#         fontsize=25,
+#         color='black',
+#         ha='right',
+#         va='center',
+#         rotation=0,
+#         annotation_clip=False,
+#         xytext=(-60, 0),
+#         textcoords='offset points'
+#     )
 
 
-# for h in hs:
-#     fig, axes = plt.subplots(1,na+1,dpi=300,figsize=(12,2),sharey=True)#plt.subplots(1,na, figsize=(3*agent.K,2),dpi=300)
-#     axes = axes.flatten()
-#     axes[0].set_ylabel(f"Posterior Context", fontsize=14)
-#     plt.tight_layout()
-#     # plt.subplots_adjust(wspace=0.4,hspace=0.5)
-#     for i in range(na+1):
-#         axes[i].grid(axis="x", alpha=0.7)
-#         axes[i].set_xlabel("trial",fontsize=14)
-#         axes[i].set_ylim([-0.05,1.05])
-#         axes[i].tick_params(axis="x", labelrotation=40)
-#         axes[i].xaxis.set_major_locator(MultipleLocator(switch))
-        
-#         if not i == na:
-#             axes[i].set_title(f"Context {i+1}", fontsize=14)
-#             sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={i}"), x="index",y="post_context", color=cols[i], errorbar="se")
-#         else:
-#             sns.lineplot(ax=axes[i], data=df.query(f"h=={h} & context=={max_context+1}"), x="index", y="post_context", color="grey", errorbar="se")
-#             axes[i].set_title(f"Novel Context", fontsize=14)
-
-#     # fig, axes = plt.subplots(1,1,figsize=(2.363*1.3, 1.687*1.3),dpi=300)
-#     # plt.tight_layout()
-#     # # plt.subplots_adjust(wspace=0.4,hspace=0.4)
-#     # axes.grid(axis="x", alpha=0.7)
-#     # axes.set_xlabel("trial",fontsize=14)
-#     # axes.xaxis.set_major_locator(MultipleLocator(switch))
-#     # axes.set_ylim([-0.05,1.05])
-#     # axes.tick_params(axis="x", labelrotation=40)
-
-#     # axes.xaxis.set_major_locator(MultipleLocator(switch))
-
-
-
-
-# Plot effect of habitual tendency on relative context entropy
-#%%
+#%% Plot effect of habitual tendency on relative context entropy
 if plot_avg_context_entropy_and_accuracy:
+    try: 
+        df_big = pd.read_csv("automatization_figure_data.csv")
+        print("Data loaded from automatization_figure_data.csv")
+    except:
+        pass
+
     df = df_big.copy().query(f"nb == {number_of_bandits[0]}")
+    
     df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
 
     fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
@@ -772,50 +823,37 @@ if plot_avg_context_entropy_and_accuracy:
     # ax[0].set_xlabel(r"Habitual Tendency counts $h_0$",fontsize=14)
     # # ax[0].set_ylim([0.86,1])
     # ax[0].set_xticks(np.arange(10,200,20))
-
-    sns.lineplot(ax=ax[0], x=np.log(hs), y=df_big.groupby(["h"])["entropy"].mean().to_numpy(), markers=True,err_style="bars", marker="o")
+    mean_dkl = df_big.groupby(["h"])["entropy"].mean().to_numpy()
+    sns.lineplot(ax=ax[0], x=np.log(1/hs), y=mean_dkl, markers=True,err_style="bars", marker="o")
     # ax[0].plot(np.log(hs), (df_big.groupby(["h"])["entropy"]).mean().to_numpy(),"-o")
-    ax[0].set_xlabel(r"Habitual Tendency counts $\ln h_0$",fontsize=18, labelpad=10)
+    ax[0].set_xlabel(r"Automatization strength $\ln h$",fontsize=18, labelpad=10)
     ax[0].set_ylabel(r"$D_{KL}[q(c) | p_{\text{unif}}(c)]$", fontsize=18, labelpad=10)
     ax[0].tick_params(labelsize=16)
+    # ax[0].invert_xaxis()
+
     df = df_big.copy().query(f"nb == {number_of_bandits[0]}")
     df["correct"] = df["choice"] == df["phase"]
     grouped = df.groupby(by=["h","agent"])["correct"].mean()
-    mean_accuracy = grouped.groupby(level=["h"]).mean()
-    sns.lineplot(ax=ax[1], x=np.log(hs), y=mean_accuracy.to_numpy(), markers=True, err_style="bars", marker="o")
-    ax[1].set_xlabel(r"Habitual Tendency counts $\ln h_0$",fontsize=18, labelpad=10)
+    mean_accuracy = grouped.groupby(level=["h"]).mean().to_numpy()
+
+    sns.lineplot(ax=ax[1], x=np.log(1/hs), y=mean_accuracy, markers=True, err_style="bars", marker="o")
+    ax[1].set_xlabel(r"Automatization strength $\ln h$",fontsize=18, labelpad=10)
     ax[1].set_ylabel(f"Mean accuracy", fontsize=18, labelpad=10)
     ax[1].tick_params(labelsize=16)
-    # plt.ylim([0,0.2])
+
+    panel_labels = ["A", "B"]
+    for i, axis in enumerate(ax):
+        axis.annotate(
+            panel_labels[i],
+            xy=(-0.4, 1.3),
+            xycoords='axes fraction',
+            fontsize=24,
+            fontweight='bold',
+            ha='left',
+            va='top'
+        )
 
 
-
-
-    # df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K"], var_name="context", value_name="post_context")
-
-    # fig, ax = plt.subplots(1,2, figsize=(8,3),dpi=300)
-    # plt.tight_layout()
-    # plt.subplots_adjust(wspace=0.4)
-    # grouped = df.groupby(["h", "phase","context"])["post_context"].mean()
-
-    # mean_post = np.zeros(hs.size)
-    # for hi, h in enumerate(hs):
-    #     for k in range(na):
-    #         mean_post[hi] += (grouped[h,k,k])
-    # mean_post /= na
-
-
-    # ax[0].plot(hs[1:],mean_post[1:], '-o')
-    # ax[0].set_ylabel(r"Mean $p(c_t=c_{true}|o)$",fontsize=14)
-    # ax[0].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
-    # # ax[0].set_ylim([0.86,1])
-    # ax[0].set_xlim([2,202])
-    # ax[1].plot(hs[1:], df_big.groupby(["h"])["entropy"].mean()[1:],"-o")
-    # ax[1].set_xlabel(r"Habitual Tendency counts $\alpha_0$",fontsize=14)
-    # ax[1].set_ylabel(f"Context relative entropy", fontsize=14)
-    # # ax[1].set_ylim([0.3, 0.65])
-    # # ax[1].set_xlim([2,202])
-    # # plt.ylim([0,0.2])
-
+    plt.savefig("figure.png", bbox_inches='tight')  # <-- Add pad_inches for extra margin
 
 # %%
