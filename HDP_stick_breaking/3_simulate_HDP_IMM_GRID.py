@@ -55,7 +55,7 @@ def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=
 
 
 # Task setup parameter
-plot_rewards = False
+plot_rewards = True
 plot_transition_matrix = False
 plot_context = True
 plot_context_obs = False
@@ -71,10 +71,6 @@ debug = False
 dpi = 100
 
 
-
-
-
-
 switch = [100]#[100,100,300]
 repeats = 2
 
@@ -86,19 +82,30 @@ approx_pred_rew = True
 # # for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
 # # I potentially also played around with the self-transition bias in the extra column as wel.
 
-gammas = np.array([1])       # global prior context opening tendency
+# gammas = np.array([850])       # global prior context opening tendency
+# alphas = np.array([30])        # local  prior context opening tendency
+# kappas = np.array([250])       # self-transition bias
+# hs =    np.array([10000000])         # np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
+# rho_global = np.array([1])     # global prior counts forgetting rate
+# rho_local = np.array([1])      # local prior counts forgetting rate 
+# state_unc = False
+# gamma_init = 1000
+# cap = 100000
+
+gammas = np.array([10])       # global prior context opening tendency
 alphas = np.array([1])        # local  prior context opening tendency
-kappas = np.array([100])       # self-transition bias
+kappas = np.array([40])       # self-transition bias
 hs =    np.array([10000000])         # np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 
 state_unc = False
-gamma_init = 1000
+gamma_init = 20
 cap = 100000
-reps = 1
+
+
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global)
-reps = 1 # how many times to run simulation with same params
+reps = 10 # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*reps
 
@@ -203,6 +210,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
 
         '''           define p(r|s,c)             '''
         lambda_H = np.ones([nr,ns])
+        lambda_H[0,:] = 2
         # lambda_H[0,start] = 10
         init_counts = np.ones([nr,ns])
         # init_counts[0,start] = 10
@@ -210,6 +218,18 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
 
         for c in range(nc):
             counts_prior_rewards[:,:,c] = init_counts
+        counts_prior_rewards[0,:,:] = 2
+
+
+        template_context_contingencies = np.ones([nr,ns,ns])
+        bias = 10
+        for s in range(0,ns):
+            template_context_contingencies[0,np.where(np.arange(ns) != s),s] = 10 
+            template_context_contingencies[1,s,s] = 10
+
+
+
+
 
 
         if approx_pred_rew:
@@ -288,7 +308,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                     rho_g = rho_g,
                     max_context=max_context,
                     K = nc,
-                    template_context_contingencies = None,
+                    template_context_contingencies = template_context_contingencies,
                     context_observation_counts=context_observation_counts,
                     use_context_obs=use_context_obs,
                     gamma_init = gamma_init,
@@ -348,21 +368,20 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                 ax.tick_params(axis="x", labelsize=12, rotation = 40)
 
                 plt.show()
-#%%
 
 
-        if True:
-            fig, ax = plt.subplots(1, figsize=(3,3), dpi=dpi)
-            ax.set_ylim((0,1.05))
-            plt.grid(axis="x", alpha=0.7)
-            ax.xaxis.set_major_locator(MultipleLocator(switch[0]))  # Set tick spacing on x-axis to 1
-            # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
-            # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
-            # ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
-            # ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
+        # if True:
+        #     fig, ax = plt.subplots(1, figsize=(3,3), dpi=dpi)
+        #     ax.set_ylim((0,1.05))
+        #     plt.grid(axis="x", alpha=0.7)
+        #     ax.xaxis.set_major_locator(MultipleLocator(switch[0]))  # Set tick spacing on x-axis to 1
+        #     # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
+        #     # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
+        #     # ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
+        #     # ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
 
-            for c in range(agent.K):
-                ax.plot(agent.post_context[:,-1,c],label=f"Context {c+1}", linewidth=1)
+        #     for c in range(agent.K):
+        #         ax.plot(agent.post_context[:,-1,c],label=f"Context {c+1}", linewidth=1)
 
-            ax.plot(novel_context[:,1], 'gray', label=f"Novel\ncontext")
+        #     ax.plot(novel_context[:,1], 'gray', label=f"Novel\ncontext")
         

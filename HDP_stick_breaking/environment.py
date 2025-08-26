@@ -128,8 +128,6 @@ class GridWorld(object):
         #generate one sample from multinomial distribution
         regime = self.training_protocol[tau]
 
-        if tau == 102:
-            a=0
         r = np.random.choice(self.Rho.shape[0], p = self.Rho[:, state, regime])
         return r
     

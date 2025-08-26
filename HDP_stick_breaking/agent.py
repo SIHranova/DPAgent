@@ -1449,16 +1449,26 @@ class HDP_IMM():
         self.posterior_context_joint[tau,t,:,:] = q_c_joint
 
         if self.debug:
-            print(f"\n-----------------------------")
-            print(f"context inference terms at tau: {tau}, t: {t}")
-            print(f"prior_context: {prior_context}")
-            print(f"T*q(s)       :\n{(self.transition_matrix*prior_context[None,:]).round(3)}")
-            if t != 0:
-                print(f"obs_message  :\n{np.array([self.context_likelihood[tau-1], context_likelihood]).round(3)}")
-                print(f"q_z          :\n{q_z.round(3)}")
-                print(f"q_z*obs      :\n{obs_messages.round(3)}")
-            print(f"q_c_joint    :\n{q_c_joint.round(3)}")
-            print(f"q_c:         :{q_c.round(3)}")
+
+            if tau > 1:# 400 and tau < 420 and t == 4:
+
+                print(f"\n-----------------------------")
+                print(f"context inference terms at tau: {tau}, t: {t}")
+                print(f"\nln p'(c_t-1)      :\n{np.log(prior_context[:self.K+1]).round(3)}")
+                print(f"\nln p'(c_t | c_t-1):\n{np.log(self.transition_matrix[:self.K+1, :self.K+1]).round(3)}")
+                # print(f"ln p'(c_t | c_t-1) :{(np.log((self.transition_matrix*prior_context[None,:])[:self.K+1, :self.K+1])).round(3)}")
+                if t != 0:
+                    # print(f"obs_message  :\n{np.array([self.context_likelihood[tau-1], context_likelihood]).round(3)}")
+                    # print(f"q_z          :\n{q_z.round(3)}")
+                    # print(f"q_z*obs      :\n{obs_messages.round(3)}")
+                    print(f"\nq(z)              :\n{q_z[0].round(3)[:self.K+1]}")
+                    print(f"F(c_t-1)          :\n{self.context_likelihood[tau-1].round(3)[:self.K+1].T}")
+                    print(f"F(c_t)            :\n{context_likelihood.round(3)[:self.K+1,None]}")
+                    print(f"\nF(c_t-1)^q(z)   :\n{obs_messages[0].round(3)[:self.K+1]}")
+                    print(f"\nF(c_t)^q(z)     :\n{obs_messages[1].round(3)[:self.K+1,None]}")
+                print(f"\nln q_c_joint      :\n{(self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None])[:self.K+1,:self.K+1].round(3)}")
+                print(f"\nq_c_joint         :\n{q_c_joint[:self.K+1, :self.K+1].round(3)}")
+                print(f"\nq_c:              :\n{q_c[:self.K+1].round(3)}")
 
 
         return q_c, q_c_joint
@@ -1522,7 +1532,7 @@ class HDP_IMM():
                     # print(self.prior_rewards_counts[tau,:,:,self.K-1].round())
                 else:
                     self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
-                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H + np.random.uniform(size = self.lambda_H.shape)
+                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H #+ np.random.uniform(size = self.lambda_H.shape)
 
 
                 # add prior over new atom \theta_k
@@ -1620,7 +1630,7 @@ class HDP_IMM():
                 
         ######### Print inferred beliefs
         if self.debug:
-            if tau > 98:
+            if tau > 1: #400 and tau < 420 and t == 4:
                 if self.opened_new_context[tau+1]:
                     self.K -= 1
                 print(f"--------------------\ntau,t: {tau,t}")
