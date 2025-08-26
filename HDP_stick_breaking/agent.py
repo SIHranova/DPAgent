@@ -1113,76 +1113,76 @@ class HDP_IMM():
 
 
     def __init__(self,
-                 lambda_H=np.ones(10),
-                 TAU=10,
-                 T=1,
-                 gamma=2,
-                 alpha=1,
-                 kappa=0,
-                 K=1,
-                 max_context=7,
-                 state_transition_matrix = None,
-                 observation_generation_matrix = None,
-                 utility = None,
-                 policies = None,
+                 lambda_H=np.ones(10),                   # parameters of base Measure H = Dir(lambda) for novel context
+                 TAU=10,                                 # number of episodes
+                 T=1,                                    # length of episode
+                 gamma=2,                                # global prior cluster opening tendency
+                 alpha=1,                                # local prior cluster opening tendency
+                 kappa=0,                                # self transition bias  
+                 K=1,                                    # initial number of contexts
+                 max_context=7,                          # max number of contexts
+                 state_transition_matrix = None,         # state transition model p(s'|s,a)
+                 observation_generation_matrix = None,   # observation model p(o|s)
+                 utility = None,                         # reward utility p(R=1|o)
+                 policies = None,                        # set of possible policies
                 #  prior_rewards = None,
-                 counts_prior_rewards = None,
-                 prior_policies = None,
-                 counts_prior_policies = None,
-                 prior_states = None,
-                 na = None,
-                 env = None,
-                 approx_pred_pol = None,
-                 approx_pred_rew = None,
-                 h=1000,
-                 debug = False,
-                 dec_temp = 1,
-                 rho_g = 1,
-                 rho_l = 1,     # global prior counts forgetting rate
-                 gamma_init = 1000,
-                 template_context_contingencies=None,
-                 context_observation_counts = None,
-                 use_context_obs = False,
-                 cap = 10000,
-                 use_template=False
+                 counts_prior_rewards = None,            # Dirichlet counts lambda of p(r|s,c, lambda)
+                 prior_policies = None,                  # p(r|s,c, lambda)p(lambda) = int_lambda p(r|s,c,lambda)p(lambda)
+                 counts_prior_policies = None,           # Dirichlet counts h of p(pi|c,h)
+                 prior_states = None,                    # prior over initial states p(s_1)
+                 na = None,                              # number of actions   
+                 env = None,                             # task environment class
+                 approx_pred_pol = None,                 # whether to use digamma approximation for policies
+                 approx_pred_rew = None,                 # whether to use digamma approximation for rewards
+                 h=1000,                                 # habitual/automatization tendency initial counts; h_0 in paper
+                 debug = False,                          # when true prints inferred beliefs
+                 dec_temp = 1,                           # policy selection decision temperature
+                 rho_g = 1,                              # forgetting rate global prior counts
+                 rho_l = 1,                              # forgetting rate local prior counts
+                 gamma_init = 1000,                      # initial value of prior parameter gamma_k1 for variable beta_k
+                 template_context_contingencies=None,    # possible template context contingencies
+                 context_observation_counts = None,      # Dirichlet counts rho of p(d|c,rho), where d is a context observation and c a possible context.
+                 use_context_obs = False,                # adds prediction error from context observation to free energy when context observation d present
+                 cap = 10000,                            # maximum value of Dir counts gamma_k1 and gamma_k2
+                 use_template=False                      # whether to use template context contingencies for new contexts
                 ):
         
-        self.debug = debug
+        self.debug = debug                                                 # print beliefs when true
         self.max_context = max_context                                     # max number of contexts
-        self.T = T                                                         # number of observations per episode
-        self.K = K                                                         # current number of contexts
         self.TAU = TAU                                                     # number of episodes
-        self.gamma = gamma                                                 # cluster opening tendency
-        self.alpha = alpha                                                 # transitioning into a new cluster tendency
+        self.T = T                                                         # episode length
+        self.K = K                                                         # initial number of contexts
+        self.gamma = gamma                                                 # global prior cluster opening tendency
+        self.alpha = alpha                                                 # local prior cluster opening tendency
         self.kappa = kappa                                                 # self transition bias
-        self.lambda_H = lambda_H                                           # parameters of base Measure H = Dir(lambda)
-        self.init_reward_counts = counts_prior_rewards
-        self.na = na
-        self.nr = utility.size
-        self.ns = prior_states.size
-        self.npi = prior_policies.shape[0]
-        self.env = env
-        self.state_transition_matrix = state_transition_matrix
-        self.observation_generation_matrix = observation_generation_matrix
-        self.policies = policies
-        self.prior_policies = prior_policies
-        self.counts_prior_policies = counts_prior_policies
-        self.utility = utility
-        self.use_context_obs = use_context_obs
-        self.prior_states = prior_states
-        self.approx_pred_pol = approx_pred_pol
-        self.approx_pred_rew = approx_pred_rew
-        self.h = h
-        self.dec_temp = dec_temp
-        self.rho_g = rho_g
-        self.rho_l = rho_l
-        self.gamma_init = gamma_init
-        self.template_context_contintengcies = template_context_contingencies
-        self.context_observation_counts = context_observation_counts
-        self.nco = context_observation_counts.shape[0]
-        self.cap = cap
-        self.use_template = use_template
-        self.duplicates = []
+        self.lambda_H = lambda_H                                           # parameters of base Measure H = Dir(lambda) for novel context
+        self.init_reward_counts = counts_prior_rewards                     # initial counts for p(r|s,c, lambda) if simulation initialized with K!=0
+        self.na = na                                                       # number of actions
+        self.nr = utility.size                                             # number of rewards
+        self.ns = prior_states.size                                        # number of states
+        self.npi = prior_policies.shape[0]                                 # number of policies
+        self.env = env                                                     # task environment class
+        self.state_transition_matrix = state_transition_matrix             # state transition model p(s'|s,a)
+        self.observation_generation_matrix = observation_generation_matrix # observation model p(o|s)
+        self.policies = policies                                           # set of possible policies
+        self.prior_policies = prior_policies                               # prior over policies p(pi|c) = int_pi p(pi|theta)p(theta|h)
+        self.counts_prior_policies = counts_prior_policies                 # Dirichlet counts h of p(pi|c,h)
+        self.utility = utility                                             # reward utility p(R=1|o)
+        self.use_context_obs = use_context_obs                             # adds prediction error from context observation to free energy when context observation d present
+        self.prior_states = prior_states                                   # prior over initial states p(s_1)
+        self.approx_pred_pol = approx_pred_pol                             # whether to use digamma approximation for policies
+        self.approx_pred_rew = approx_pred_rew                             # whether to use digamma approximation for rewards
+        self.h = h                                                         # habitual/automatization tendency initial counts; h_0 in paper
+        self.dec_temp = dec_temp                                           # policy selection decision temperature
+        self.rho_g = rho_g                                                 # forgetting rate global prior counts
+        self.rho_l = rho_l                                                 # forgetting rate local prior counts
+        self.gamma_init = gamma_init                                       # initial value of prior parameter gamma_k1 for variable beta_k
+        self.template_context_contintengcies = template_context_contingencies   # possible template context contingencies
+        self.context_observation_counts = context_observation_counts       # Dirichlet counts rho of p(d|c,rho), where d is a context observation and c a possible context.
+        self.nco = context_observation_counts.shape[0]                     # number of context observations
+        self.cap = cap                                                     # maximum value of Dir counts gamma_k1 and gamma_k2
+        self.use_template = use_template                                   # whether to use template context contingencies for new contexts
+        # self.duplicates = []
         if not template_context_contingencies is None:
             self.template_copy = template_context_contingencies.copy()
 
@@ -1532,7 +1532,7 @@ class HDP_IMM():
                     # print(self.prior_rewards_counts[tau,:,:,self.K-1].round())
                 else:
                     self.prior_rewards_counts[tau,:,:,self.K] = self.lambda_H 
-                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H #+ np.random.uniform(size = self.lambda_H.shape)
+                    self.prior_rewards_counts[tau,:,:,self.K-1] = self.lambda_H + np.random.uniform(size = self.lambda_H.shape)
 
 
                 # add prior over new atom \theta_k

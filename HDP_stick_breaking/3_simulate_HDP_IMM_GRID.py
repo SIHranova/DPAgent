@@ -55,7 +55,7 @@ def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=
 
 
 # Task setup parameter
-plot_rewards = True
+plot_rewards = False
 plot_transition_matrix = False
 plot_context = True
 plot_context_obs = False
@@ -66,7 +66,7 @@ plot_avg_context_posterior = False
 plot_avg_context_accuracy= False
 plot_avg_context_entropy_and_accuracy = False
 use_context_obs = False
-use_template = False
+use_template = True
 debug = False
 dpi = 100
 
@@ -82,30 +82,30 @@ approx_pred_rew = True
 # # for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
 # # I potentially also played around with the self-transition bias in the extra column as wel.
 
-# gammas = np.array([850])       # global prior context opening tendency
-# alphas = np.array([30])        # local  prior context opening tendency
-# kappas = np.array([250])       # self-transition bias
+gammas = np.array([850])       # global prior context opening tendency
+alphas = np.array([30])        # local  prior context opening tendency
+kappas = np.array([250])       # self-transition bias
+hs =    np.array([30])         # np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
+rho_global = np.array([1])     # global prior counts forgetting rate
+rho_local = np.array([1])      # local prior counts forgetting rate 
+state_unc = False
+gamma_init = 1000
+cap = 100000
+
+# gammas = np.array([28])       # global prior context opening tendency
+# alphas = np.array([1])        # local  prior context opening tendency
+# kappas = np.array([40])       # self-transition bias
 # hs =    np.array([10000000])         # np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
 # rho_global = np.array([1])     # global prior counts forgetting rate
 # rho_local = np.array([1])      # local prior counts forgetting rate 
 # state_unc = False
-# gamma_init = 1000
+# gamma_init = 30
 # cap = 100000
-
-gammas = np.array([10])       # global prior context opening tendency
-alphas = np.array([1])        # local  prior context opening tendency
-kappas = np.array([40])       # self-transition bias
-hs =    np.array([10000000])         # np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
-rho_global = np.array([1])     # global prior counts forgetting rate
-rho_local = np.array([1])      # local prior counts forgetting rate 
-state_unc = False
-gamma_init = 20
-cap = 100000
 
 
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global)
-reps = 10 # how many times to run simulation with same params
+reps = 2 # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*reps
 
@@ -210,7 +210,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
 
         '''           define p(r|s,c)             '''
         lambda_H = np.ones([nr,ns])
-        lambda_H[0,:] = 2
+        lambda_H[0,:] = 1
         # lambda_H[0,start] = 10
         init_counts = np.ones([nr,ns])
         # init_counts[0,start] = 10
@@ -218,7 +218,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
 
         for c in range(nc):
             counts_prior_rewards[:,:,c] = init_counts
-        counts_prior_rewards[0,:,:] = 2
+        counts_prior_rewards[0,:,:] = 1
 
 
         template_context_contingencies = np.ones([nr,ns,ns])
@@ -243,8 +243,10 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         '''   define Env reward generation matrix '''
         reward_generation_matrix = np.zeros((nr,ns, ns))
         for s in range(ns):
-            reward_generation_matrix[0,np.where(np.arange(ns) != s),s] = 1 
+            reward_generation_matrix[0,np.where(np.arange(ns) != s),s] = 1
             reward_generation_matrix[1,s,s] = 1
+
+        reward_generation_matrix[reward_generation_matrix == 0] = 0
 
 
         '''          define p(d|c)                '''

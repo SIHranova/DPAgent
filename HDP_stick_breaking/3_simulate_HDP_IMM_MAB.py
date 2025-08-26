@@ -167,9 +167,9 @@ plot_messages = False
 plot_example_rewards = False
 plot_avg_context_posterior = True
 plot_avg_context_accuracy= False
-plot_avg_context_entropy_and_accuracy = True
+plot_avg_context_entropy_and_accuracy = False
 use_context_obs = False
-use_template = True
+use_template = False
 debug = False
 dpi = 100
 
@@ -185,10 +185,10 @@ approx_pred_rew = True
 
 number_of_bandits = np.array([2,3,4])
 gammas = np.array([850])      # global prior context opening tendency
-switch = np.array([100,100,100])
+switch = np.array([100,100,300])
 alphas = np.array([30])        # local  prior context opening tendency
 kappas = np.array([250])       # self-transition bias
-hs =     np.array([10000])  #np.floor(np.exp(np.arange(1,9.5,0.25)))  #  np.array([10000])     # 
+hs =     np.array([70])  #np.floor(np.exp(np.arange(1,9.5,0.25)))  #  np.array([10000])     # 
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 
 
@@ -643,9 +643,9 @@ if plot_avg_context_posterior:
     context_titles = ["Novel Context", "Context 1", "Context 2", "Context 3", "Context 4"]
 
     for h in hs:
-        fig, axes = plt.subplots(number_of_bandits.size, ncols, dpi=300, figsize=(ncols*3, nrows*3.), sharey=True)
+        fig, axes = plt.subplots(number_of_bandits.size, ncols, dpi=300, figsize=(ncols*3, nrows*3.3), sharey=True)
         plt.tight_layout()
-        plt.subplots_adjust(hspace=0.6)
+        plt.subplots_adjust(hspace=0.8)
 
         for j in range(number_of_bandits.size):
             if number_of_bandits.size == 1:
@@ -694,7 +694,7 @@ if plot_avg_context_posterior:
         # Panel label at top left corner of each row
         ax.annotate(
             panel,
-            xy=(-0.18, 1.08),  # Top left corner, outside axes
+            xy=(-0.8, 1.5),  # Top left corner, outside axes
             xycoords='axes fraction',
             fontsize=28,
             fontweight='bold',
