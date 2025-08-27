@@ -158,14 +158,14 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
 
 plot_rewards = False
 plot_transition_matrix = False
-plot_context = False
+plot_context = True
 plot_context_obs = False
-plot_choice = False
+plot_choice = True
 plot_messages = False
 
 
 plot_example_rewards = False
-plot_avg_context_posterior = True
+plot_avg_context_posterior = False
 plot_avg_context_accuracy= False
 plot_avg_context_entropy_and_accuracy = False
 use_context_obs = False
@@ -183,12 +183,12 @@ approx_pred_rew = True
 # for 4 bandits some pretraining was necesary to learn all 4 or many trials! this is at 0.9
 # I potentially also played around with the self-transition bias in the extra column as wel.
 
-number_of_bandits = np.array([2,3,4])
+number_of_bandits = np.array([4])
 gammas = np.array([850])      # global prior context opening tendency
-switch = np.array([100,100,300])
+switch = np.array([300])
 alphas = np.array([30])        # local  prior context opening tendency
 kappas = np.array([250])       # self-transition bias
-hs =     np.array([70])  #np.floor(np.exp(np.arange(1,9.5,0.25)))  #  np.array([10000])     # 
+hs =     np.array([100000])  #np.floor(np.exp(np.arange(1,9.5,0.25)))  #  np.array([10000])     # 
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 
 
@@ -197,7 +197,7 @@ cap = 100000
 
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global, number_of_bandits)
-reps = 20 # how many times to run simulation with same params
+reps = 3 # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*number_of_bandits.size*reps
 
