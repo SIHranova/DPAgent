@@ -11,7 +11,7 @@ from matplotlib.ticker import MultipleLocator
 from itertools import product
 # from misc import *
 from environment import GridWorld
-from agent import HDP,HDP_IMM 
+from agent import HDP,HDP_IMM, HDP_correct
 from world import World
     
 plt.rcParams['figure.dpi'] = 100
@@ -285,12 +285,14 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                         no=no,nr=nr)
 
 
-        agent = HDP_IMM(lambda_H = lambda_H,
+        agent = HDP_correct(lambda_H = lambda_H,
                     TAU=TAU,
                     T=T,
                     gamma=gamma,
                     alpha=alpha,
                     kappa=kappa,
+                    K = nc,
+                    max_context=max_context,
                     state_transition_matrix = state_transition_matrix,
                     observation_generation_matrix = observation_generation_matrix,
                     utility = utility,
@@ -308,8 +310,6 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                     debug=debug, # If set to True will print inferred agent beliefs up to trial 40?
                     rho_l= rho_l,
                     rho_g = rho_g,
-                    max_context=max_context,
-                    K = nc,
                     template_context_contingencies = template_context_contingencies,
                     context_observation_counts=context_observation_counts,
                     use_context_obs=use_context_obs,

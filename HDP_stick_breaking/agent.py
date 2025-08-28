@@ -1755,7 +1755,12 @@ class HDP_correct():
                  rho_g = 1,
                  rho_l = 1,     # global prior counts forgetting rate
                  template_context_contingencies=None,
-                 gamma_init = 1
+                 context_observation_counts = None,      # Dirichlet counts rho of p(d|c,rho), where d is a context observation and c a possible context.
+                 use_context_obs = False,
+                 gamma_init = 1,
+                 cap = 100000,
+                 use_template = False,
+        
                 ):
         
         self.debug = debug
@@ -1780,7 +1785,9 @@ class HDP_correct():
         self.prior_policies = prior_policies
         self.counts_prior_policies = counts_prior_policies
         self.utility = utility
-        
+        self.context_observation_counts = context_observation_counts       # Dirichlet counts rho of p(d|c,rho), where d is a context observation and c a possible context.
+        self.use_context_obs=use_context_obs,
+
         self.prior_states = prior_states
         self.approx_pred_pol = approx_pred_pol
         self.approx_pred_rew = approx_pred_rew
@@ -1791,10 +1798,14 @@ class HDP_correct():
         self.rho_l = rho_l
         self.template_context_contintengcies = template_context_contingencies
         self.gamma_init = gamma_init
+        self.cap = cap
+        self.use_template = use_template
 
 
     def initialize_beliefs(self):
-
+        
+        self.q_z = np.zeros([self.TAU, self.max_context, self.max_context])
+        self.q_z[0,:,:self.K+1] = 1/(self.K+1) 
         self.prior_context = np.zeros(self.max_context)
         self.prior_context[0] = 1                                                         # context prior p(c1)
 
@@ -1970,68 +1981,40 @@ class HDP_correct():
         return likelihood, posterior_policies
 
 
-    def update_beliefs_context(self, tau, t, posterior_policies, likelihood_policies):
+    def update_beliefs_context_c(self, tau, t, posterior_policies, likelihood_policies):
       
         post = self.posterior_context[tau-1,self.T-1]
-        prior_context = self.prior_context if tau < 1 else self.transition_matrix.dot(post)
-        
-        # # print("infering JOINT q(c_t,c_{t-1} in LOG space") if tau % 100 == 0 else 0
+        prior = self.prior_context if tau < 1 else self.transition_matrix.dot(post)
 
-        # post[self.K] = 0
+        if t>0:
+            alphas = self.prior_policies_counts[tau]
+            outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
+            policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
+            policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
+            context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
+            context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
+        else:
+            context_likelihood = np.zeros(self.max_context)
 
-        # if t>0:
-        #     alphas = self.prior_policies_counts[tau]
-        #     outcome_surprise =  (posterior_policies * self.ln(likelihood_policies)).sum(axis=0)
-        #     policy_entropy   = -(posterior_policies * self.ln(posterior_policies)).sum(axis=0)
-        #     policy_surprise  =  (posterior_policies * (digamma(alphas) - digamma(alphas.sum(axis=0)))).sum(axis=0)
-        #     context_likelihood = np.nan_to_num(outcome_surprise + policy_entropy + policy_surprise)
-        #     context_likelihood[:self.K+1] = self.ln(softmax(context_likelihood[:self.K+1]))
-        
-        # else:
-        #     context_likelihood = np.zeros(self.max_context)
+        if t==self.T-1:
+            self.context_likelihood[tau] = context_likelihood
 
-        # if t==self.T-1:
-        #     self.context_likelihood[tau] = context_likelihood
+        # CHECK IF ALL THE TRAILING ZEROS ARE WORKING!
 
-        # if tau == 0:
-        #     obs_messages = np.array([context_likelihood, np.zeros(self.max_context)])
+        F_c = self.q_z[tau].dot(context_likelihood)
+        q_c = np.zeros(self.max_context) 
+        q_c[:self.K+1] = softmax(prior[:self.K+1] + F_c[:self.K+1])
 
-        #     q_z = np.array([self.global_prior, np.zeros(self.max_context)])
-        # else:
-        #     obs_messages = np.array([self.context_likelihood[tau-1], context_likelihood])
-        #     q_z = self.construct_G_0(self.global_prior_counts[tau-1])
-        #     # q_z[:self.K] /= q_z[:self.K].sum()
-        #     # q_z[self.K] = 0
-        #     assert np.isclose(q_z.sum(),1)
-        #     q_z = np.array([q_z, self.global_prior])
-        #     # q_z = np.array([[1/(self.K+1)]*(self.K+1) + [0]*(self.max_context-self.K-1), [1/(self.K+1)]*(self.K+1) + [0]*(self.max_context-self.K-1)])
-        # obs_messages = q_z*obs_messages # obs_messages  # self.ln(q_z) + obs_messages #  
-        # q_c_joint = self.ln(self.transition_matrix*prior_context[None,:]) + obs_messages[0,:][None,:] + obs_messages[1,:][:,None]
-        
-        # # ind = self.K+1 if tau == 0 else self.K
-        # q_c_joint[:self.K+1, :self.K] = softmax(q_c_joint[:self.K+1, :self.K])
-        # q_c_joint[self.K+1:, :] = 0
-        # q_c_joint[:, self.K:] = 0
-
-        # q_c = q_c_joint.sum(axis=1)
-        # assert np.isclose(q_c.sum(),1)
-            
-        # self.posterior_context[tau,t] = q_c
-        # self.posterior_context_joint[tau,t,:,:] = q_c_joint
-        
-        # if self.debug:
-        #     print(f"\n-----------------------------")
-        #     print(f"context inference terms at tau: {tau}, t: {t}")
-        #     print(f"prior_context: {prior_context}")
-        #     print(f"T*q(s)       :\n{(self.transition_matrix*prior_context[None,:]).round(3)}")
-        #     if t != 0:
-        #         print(f"obs_message  :\n{np.array([self.context_likelihood[tau-1], context_likelihood]).round(3)}")
-        #         print(f"q_z          :\n{q_z.round(3)}")
-        #         print(f"q_z*obs      :\n{obs_messages.round(3)}")
-        #     print(f"q_c_joint    :\n{q_c_joint.round(3)}")
-        #     print(f"q_c:         :{q_c.round(3)}")
-            
         return q_c
+
+
+    def update_beliefs_context_z(self, tau, t, q_c):
+
+        q_z = self.q_z[tau].copy()
+        self.construct_G_0(self.global_prior_counts[tau], approx=True, normalize=False)
+        q_z[:self.K,:self.K+1] =  q_c*self.context_likelihood[tau]
+    #    self.context_likelihood[tau]
+    #    self.global_prior_counts[tau]
 
 
 
@@ -2045,8 +2028,9 @@ class HDP_correct():
 
         q_s = self.update_beliefs_states(t, tau, reward, action, observation)
         likelihood_policies, posterior_policies = self.update_beliefs_policies(t,tau)
-        q_c, q_c_joint = self.update_beliefs_context(tau, t, posterior_policies, likelihood_policies)
-
+        q_c = self.update_beliefs_context_c(tau, t, posterior_policies, likelihood_policies)
+        
+        q_z  = self.update_beliefs_context_z(tau,t,q_c)    
 
         if t == self.T-1:
             
@@ -2254,7 +2238,7 @@ class HDP_correct():
                     self.K = self.K+1
 
 
-    def construct_G_0(self, global_prior_counts, approx=True):
+    def construct_G_0(self, global_prior_counts, approx=True, normalize=True):
 
         global_prior = np.zeros(self.max_context)
         
@@ -2281,7 +2265,8 @@ class HDP_correct():
             for k in range(self.K+1):
                 global_prior[k] = beta_prime_k[k] + beta_prime_l[k] - norm[k]
             
-            global_prior[:self.K+1] = softmax(global_prior[:self.K+1])
+            if normalize:
+                global_prior[:self.K+1] = softmax(global_prior[:self.K+1])
             
         # print(f"global_prior:\n {global_prior_counts}, {global_prior}")
 
