@@ -211,9 +211,9 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
         '''           define p(r|s,c)             '''
         lambda_H = np.ones([nr,ns])
         lambda_H[0,:] = 1
-        # lambda_H[0,start] = 10
+        lambda_H[0,start] = 10
         init_counts = np.ones([nr,ns])
-        # init_counts[0,start] = 10
+        init_counts[0,start] = 10
         counts_prior_rewards = np.zeros([nr,ns,nc])#np.stack([lambda_H for i in range(nc)],axis=-1)
 
         for c in range(nc):
@@ -285,7 +285,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g in sim_params:
                         no=no,nr=nr)
 
 
-        agent = HDP_correct(lambda_H = lambda_H,
+        agent = HDP_IMM(lambda_H = lambda_H,
                     TAU=TAU,
                     T=T,
                     gamma=gamma,

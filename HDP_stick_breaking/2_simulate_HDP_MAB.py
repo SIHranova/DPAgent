@@ -1,6 +1,6 @@
 #%%
 import numpy as np
-np.set_printoptions(suppress=True)
+# np.set_printoptions(suppress=True)
 # %matplotlib widget
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -11,7 +11,7 @@ from matplotlib.ticker import MultipleLocator
 
 # from misc import *
 from environment import MultiArmedBandit
-from agent import HDP
+from agent import HDP, HDP_correct
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
@@ -154,18 +154,7 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
     plt.show()
 
 # Task setup parameters
-na = 3
-nb = na
-ns = nb+1
-no = ns
-nr = 3
-nt = na
-nc = 1
-nco = na
-T = 2
-npi = na**(T-1)
 
-dpi = 100
 plot_rewards = True
 plot_transition_matrix = False
 plot_context = True
@@ -173,71 +162,82 @@ plot_context_obs = False
 plot_choice = False 
 plot_messages = False
 
-debug = False
-switch = 100
-repeats = 2
-training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
-# plt.rcParams['axes.xaxis.major.locator'] = MultipleLocator(switch)
-TAU = training_protocol.size
 
-# Agent setup Parameters
-h = 1000
+plot_example_rewards = False
+plot_avg_context_posterior = False
+plot_avg_context_accuracy= False
+plot_avg_context_entropy_and_accuracy = False
+use_context_obs = False
+use_template = False
+debug = False
+dpi = 100
+
+repeats = 1
+
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
 
-gammas = np.array([1])         # global prior context opening tendency
-alphas = np.array([3])         # local  prior context opening tendency
-kappas = np.array([0.2])       # self-transition bias
-rho_global = np.array([1])     # global prior counts forgetting rate
-rho_local = np.array([1])      # local prior counts forgetting rate 
+number_of_bandits = np.array([2])
 
 
-gammas = np.concatenate([np.arange(0.1,1,0.1),np.arange(2,20,1)])        # global prior context opening tendency
-alphas = np.arange(1,30,1)        # local  prior context opening tendency
-kappas = np.arange(1,60)        # self-transition bias
-rho_global = np.array([1])     # global prior counts forgetting rate
-rho_local = np.array([1])      # local prior counts forgetting rate 
 
-# gamma_init = 30
-# gammas = np.array([1])       # global prior context opening tendency
-# alphas = np.array([27])        # local  prior context opening tendency
-# kappas = np.array([41])        # self-transition bias
-# rho_global = np.array([1])     # global prior counts forgetting rate
-# rho_local = np.array([1])
-
-gamma_init = 20
-gammas = np.array([0.1])       # global prior context opening tendency
-alphas = np.array([9])         # local  prior context opening tendency
-kappas = np.array([10])        # self-transition bias
+gammas = np.array([1,2,3,4,5,6])       # global prior context opening tendency
+switch = np.array([100])
+alphas = np.array([1,2,3,4,5])         # local  prior context opening tendency
+kappas = np.array([1,2,3,4,5,6,7,8,9,10])        # self-transition bias
+hs = np.array([10000])
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])
 
+gamma_init = 1
+cap = 1000000
 
-sim_params = product(alphas, gammas, kappas,rho_local, rho_global)
-reps = 5  # how many times to run simulation with same params
+# gammas = np.array([850])       # global prior context opening tendency
+# switch = np.array([100])
+# alphas = np.array([30])         # local  prior context opening tendency
+# kappas = np.array([250])        # self-transition bias
+# hs = np.array([10000])
+# rho_global = np.array([1])     # global prior counts forgetting rate
+# rho_local = np.array([1])
 
+# gamma_init = 1000
+# cap = 1000000
 
-sim_data = np.zeros([alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps,7])
-print(f"-----------------------------------")
-print(f"{alphas.size*kappas.size*gammas.size*rho_global.size*rho_local.size*reps} simulations to run")
+sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global, number_of_bandits)
+reps = 1 # how many times to run simulation with same params
+
+n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*number_of_bandits.size*reps
+
 i = -1
 
-max_context = 6
 ###### Run simulations
 learned_correct = []
 
 dfs = []
 
-for alpha, gamma, kappa, rho_l, rho_g in sim_params:
+for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:  
     for rep in range(reps):
-    # try:
+
+        nb = na
+        ns = nb+1
+        no = ns
+        nco = na
+        nr = 3
+        nc = 0
+        nt = na
+        max_context = 6
+        T = 2
+        npi = na**(T-1)
+        ind = np.arange(number_of_bandits.size)[number_of_bandits == nb][0]
+        training_protocol = np.tile(np.arange(nb).repeat(switch[ind]),repeats)
+        TAU = training_protocol.size
+
         ####### Setup simulation
         
         i+=1
 
         '''           define policies            '''
-        # policies = list(product(list(np.arange(na))*(T-1)))
         policies = np.array(list(product( np.arange(na), repeat= T-1)))
 
 
@@ -261,22 +261,21 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         bias = 1
         for c in range(nc):
             init_counts = np.ones([nr,nb+1])
-            init_counts[0,c] = bias
-            init_counts[1,np.arange(na+1) != c] = bias
+            init_counts[1,c] = bias
+            init_counts[0,np.arange(na+1) != c] = bias
             init_counts[:,-1] = [1,1,100]
             counts_prior_rewards[:,:,c] = init_counts
-            counts_prior_rewards[:,:,c] #+= np.random.uniform(low=0, high=1, size=(nr,ns))
+            # counts_prior_rewards[:,:,c] += np.random.uniform(low=0, high=1, size=(nr,ns))
             
         # IMPLEMENT CREATION OF TEMPLATE CONTEXTS
         template_context_contingencies = np.ones([nr,nb+1,na])
-        bias = 3
+        bias = 10
         for temp in range(0,nt):
-            template_context_contingencies[0,temp,temp] = bias
-            template_context_contingencies[1, np.arange(na+1) != temp, temp] = bias
+            template_context_contingencies[1,temp,temp] = bias
+            template_context_contingencies[0, np.arange(na+1) != temp, temp] = bias
             template_context_contingencies[:,-1,:] = np.array([1,1,100])[:,None]
-        template_context_contingencies = template_context_contingencies[:,:,1:]
-        # template_context_contingencies += np.random.uniform(low=0, high=1, size=(nr,ns,nt))
-        
+        template_context_contingencies += np.random.uniform(low=0, high=1, size=(nr,ns,nt))
+
 
         if approx_pred_rew:
             prior_rewards = scp.digamma(counts_prior_rewards) - scp.digamma(counts_prior_rewards.sum(axis=0))
@@ -293,19 +292,19 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         reward_generation_matrix = np.ones([nr,ns,len(bandits)])*q
 
         for context,b in enumerate(bandits):
-            reward_generation_matrix[0,b,context] = p
-            reward_generation_matrix[1,np.arange(nb+1) != b,context] = p
+            reward_generation_matrix[1,b,context] = p
+            reward_generation_matrix[0,np.arange(nb+1) != b,context] = p
 
         reward_generation_matrix[-1,:] = 0
         reward_generation_matrix[:,-1] = 0
         reward_generation_matrix[-1,-1] = 1
         '''          define p(d|c)                '''
-        p = 1
+        p = 0.9
         q = 1-p
         context_obs_generation_matrix = np.ones([nco, na])*(q/(na-1))
         context_obs_generation_matrix[np.arange(nco), np.arange(nco)] = p
         '''           define counts alpha in p(pi|theta,alpha)           '''
-        counts_prior_policies = np.zeros([npi,nc]) + h
+        counts_prior_policies = np.zeros([npi,nc+1]) + h
 
         if approx_pred_pol:
             prior_policies = scp.softmax(scp.digamma(counts_prior_policies) - scp.digamma(counts_prior_policies.sum(axis=0)))
@@ -314,7 +313,12 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
 
 
         '''       define dummy utility RV p(R=1) '''
-        utility = np.array([0.99, 0.005,0.005])
+        utility = np.array([0.005, 0.99, 0.005])
+
+        '''   define context obs contingencies '''
+        context_observation_counts = np.ones([nco,nc+1])
+
+
 
         ######## Plot task setup
         if False:
@@ -365,11 +369,11 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                             n_bandits = nb,
                             training_protocol=training_protocol,
                             observation_generation_matrix=observation_generation_matrix,
-                            no=no,
-                            context_observation_generation_matrix = np.eye(na))
+                            context_observation_generation_matrix = np.eye(na),
+                            no=no)
 
 
-        agent = HDP(lambda_H = lambda_H,
+        agent = HDP_correct(lambda_H = lambda_H,
                     TAU=TAU,
                     T=T,
                     gamma=gamma,
@@ -394,22 +398,26 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                     rho_g = rho_g,
                     max_context=max_context,
                     K = nc,
-                    template_context_contingencies=template_context_contingencies,
-                    gamma_init = gamma_init)
+                    template_context_contingencies = template_context_contingencies,
+                    context_observation_counts=context_observation_counts,
+                    use_context_obs=use_context_obs,
+                    gamma_init = gamma_init,
+                    cap=cap,
+                    use_template = use_template)
 
 
 
-        world = World(agent, env,training_protocol=training_protocol)
+        world = World(agent, env, training_protocol=training_protocol)
         world.simulate_experiment()
 
 
 
 
-        ############### 
+        #### Find correct labels for inferred contexts
         best_fit = 0
         best_label = []
 
-        for perm in range(500):
+        for perm in range(1000):
             
             n_context = agent.K if agent.K >= na else na
             l = np.random.permutation(n_context)        
@@ -446,35 +454,21 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         ### CONTEXT PLOT
         
         data = agent
+        post_context = data.posterior_context[:,:,:].copy()
         post_policies = np.nan_to_num(data.posterior_policies[:,:,:,:data.K])
         prior_policies = np.nan_to_num(data.prior_policies[:-1,:,:data.K])
         like_policies = np.nan_to_num(data.likelihood_policies[:,:,:,:data.K])
-        post_context = data.posterior_context[:,:,:data.K+1].copy()
         actions = data.actions
         
-        # unexpected_event = np.zeros(TAU)
-        
-        # for trial, trial_type in enumerate(training_protocol):
-        #     if trial_type == 0:
-        #         unexpected_event[trial] = agent.observations[trial,1] != agent.rewards[trial,1] 
-        #     else:
-        #         unexpected_event[trial] = agent.observations[trial,1] == agent.rewards[trial,1] 
-
-        # inf_context = np.argmax(agent.posterior_context[:,1,:],axis=1)
-        # y_val_unexp_event = agent.posterior_context[np.arange(TAU),1,inf_context]*unexpected_event
-        # y_val_unexp_event[y_val_unexp_event == 0] = None
-
-        # y_val_action = agent.posterior_context[np.arange(TAU),1,inf_context]*agent.actions[:,0]
-        # y_val_action[y_val_action == 0] = None
-
-
         K = np.cumsum(agent.opened_new_context)+nc 
         novel_context = data.posterior_context[np.arange(TAU),:,K[:-1]]
         post_context[np.arange(TAU),:,K[:-1]] = 0
+        post_context /= post_context.sum(axis=-1)[:,:,None]
 
+        # all_labels = np.arange(max_context)
+        # other_labels = [label for label in all_labels if label not in best_label]
+        # post_context = post_context[:,:, list(best_label) + other_labels]
 
-        # post_context /= post_context.sum(axis=-1)[:,:,None]
-        
         new_context = (data.opened_new_context == True).nonzero()
             
         if plot_context:
@@ -483,16 +477,16 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
             plt.grid(axis="x", alpha=0.7)
             # plt.grid(axis="y", alpha=0.7)
             # plt.grid(axis="y")
-            ax.xaxis.set_major_locator(MultipleLocator(switch))  # Set tick spacing on x-axis to 1
+            ax.xaxis.set_major_locator(MultipleLocator(switch[ind]))  # Set tick spacing on x-axis to 1
             # plt.vlines(switch,ymin=0,ymax=1, color = 'k', linestyle='--', alpha=0.5)
             # plt.hlines(0.5,xmin=0,xmax=switch*2, color = 'k', alpha=0.2)
             # ax.scatter(np.arange(TAU), y_val_action, marker="o", color="r", s=30)
             # ax.scatter(np.arange(TAU), y_val_unexp_event, marker="x", color="k")
             
             for c in range(data.K):
-                ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=2)
+                ax.plot(post_context[:,1,c],label=f"Context {c+1}", linewidth=1)
             
-            ax.plot(novel_context[:,1], 'gray', label=f"Template\ncontext")
+            ax.plot(novel_context[:,1], 'gray', label=f"Novel\ncontext")
             
             for i, ind in enumerate(new_context):
                 if i == len(new_context)-1:
@@ -500,13 +494,94 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
                 else:
                     ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
             
-            ax.set_title(f"{gamma}; Posterior Context; correct in {(100*best_fit).round()}% of trials", fontsize=14, y = 1.05)
-            ax.legend(bbox_to_anchor=[1.05,1.05], framealpha=1, labelspacing = 1, fontsize=14)
+            ax.set_title(f"{alpha},{gamma},{kappa}, fontsize=14, y = 1.05)
+            ax.legend(
+                bbox_to_anchor=[1.05,1.05],
+                framealpha=1,
+                labelspacing = 1,
+                fontsize=14
+                # loc='lower center',
+                # bbox_to_anchor=(0.5, -0.8),
+                # ncol=data.K+2,
+                # framealpha=0,
+                # fontsize=20
+                )
+            
             # ax.legend(bbox_to_anchor=[2,-0.22], framealpha=1, fontsize=14, ncols = agent.K+2)
 
-            ax.set_xlabel("trial", fontsize=14)
-            ax.tick_params(labelsize=14)#, rotation = 45)
+            ax.set_xlabel("trial", fontsize=20)
+            ax.tick_params(axis="x",labelsize=18, rotation = 40)
+            ax.tick_params(axis="y",labelsize=18)
 
+            plt.show()
+
+            # fig, ax = plt.subplots(1, figsize=(3,3), dpi=dpi)
+            # ax.set_ylim((0,1.05))
+            # plt.grid(axis="x", alpha=0.7)
+            # ax.xaxis.set_major_locator(MultipleLocator(switch[0]))
+            
+            # for c in range(data.K):
+            #     ax.plot(data.q_c[:,-1,c],label=f"Context {c+1}", linewidth=1)
+            
+            # ax.plot(data.q_c[np.arange(TAU),-1,K[:-1]], 'gray', label=f"Novel\ncontext")
+            
+            # for i, ind in enumerate(new_context):
+            #     if i == len(new_context)-1:
+            #         ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5, label="Context\nopened")    
+            #     else:
+            #         ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
+            
+            # ax.set_title(f"{gamma}; Posterior Context; correct in {(100*best_fit).round()}% of trials", fontsize=14, y = 1.05)
+            # ax.legend(
+            #     bbox_to_anchor=[1.05,1.05],
+            #     framealpha=1,
+            #     labelspacing = 1,
+            #     fontsize=14
+            #     )
+            
+            # ax.set_xlabel("trial", fontsize=20)
+            # ax.tick_params(axis="x",labelsize=18, rotation = 40)
+            # ax.tick_params(axis="y",labelsize=18)
+
+            # plt.show()
+            
+
+            # fig, ax = plt.subplots(1, data.K, figsize=((data.K)*4,3), dpi=dpi)
+            # plt.grid(axis="x", alpha=0.7)
+            # plt.subplots_adjust(wspace = 1.4)
+            # for m in range(data.K):
+            #     ax[m].set_ylim((0,1.05))
+            #     ax[m].xaxis.set_major_locator(MultipleLocator(switch[0]))
+                
+            #     for c in range(data.K):
+            #         ax[m].plot(data.q_z[:,-1,m,c],label=f"Context {c+1}", linewidth=1)
+                
+            #     ax[m].plot(data.q_z[np.arange(TAU),-1,m,K[:-1]], 'gray', label=f"Novel\ncontext")
+                
+            #     for i, ind in enumerate(new_context):
+            #         if i == len(new_context)-1:
+            #             ax[m].vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5, label="Context\nopened")    
+            #         else:
+            #             ax[m].vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
+                
+            #     ax[m].set_title(rf"$q(z_{{{m}}})$", fontsize=14, y = 1.05)
+                
+            #     ax[m].set_xlabel("trial", fontsize=20)
+            #     ax[m].tick_params(axis="x",labelsize=18, rotation = 40)
+            #     ax[m].tick_params(axis="y",labelsize=18)
+
+            # ax[0].legend(
+            #     bbox_to_anchor=[2.1,1.05],
+            #     framealpha=1,
+            #     labelspacing = 1,
+            #     fontsize=14
+            #     # loc='lower center',
+            #     # bbox_to_anchor=(0.5, -0.8),
+            #     # ncol=data.K+2,
+            #     # framealpha=0,
+            #     # fontsize=20
+            #     )
+            # plt.show()
         
         
         if plot_messages:
@@ -559,10 +634,4 @@ for alpha, gamma, kappa, rho_l, rho_g in sim_params:
         print(f"rep: {best_fit.round(3)}")
         learned_correct.append(best_fit)
 
-    # except:
-    #     print(rf"$\alpha$: {round(alpha,6)}, $\gamma$: {round(gamma,6)}, $\kappa$: {round(kappa,6)}, Inferred {agent.K} contexts")
-
-
 #%%
-
-agent.construct_G_0(agent.global_prior_counts[0],approx=True)

@@ -11,7 +11,7 @@ from matplotlib.ticker import MultipleLocator
 
 # from misc import *
 from environment import MultiArmedBandit
-from agent import HDP,HDP_IMM 
+from agent import HDP, HDP_IMM, HDP_correct
 from world import World
 
 plt.rcParams['figure.dpi'] = 100
@@ -158,14 +158,14 @@ def plot_conditional_action_probs(df, context_col='context', action_col='action'
 
 plot_rewards = False
 plot_transition_matrix = False
-plot_context = True
+plot_context = False
 plot_context_obs = False
-plot_choice = True
+plot_choice = False
 plot_messages = False
 
 
 plot_example_rewards = False
-plot_avg_context_posterior = False
+plot_avg_context_posterior = True
 plot_avg_context_accuracy= False
 plot_avg_context_entropy_and_accuracy = False
 use_context_obs = False
@@ -184,11 +184,11 @@ approx_pred_rew = True
 # I potentially also played around with the self-transition bias in the extra column as wel.
 
 number_of_bandits = np.array([4])
-gammas = np.array([850])      # global prior context opening tendency
-switch = np.array([300])
+gammas = np.array([850])       # global prior context opening tendency
 alphas = np.array([30])        # local  prior context opening tendency
 kappas = np.array([250])       # self-transition bias
-hs =     np.array([100000])  #np.floor(np.exp(np.arange(1,9.5,0.25)))  #  np.array([10000])     # 
+hs =    np.array([10000])  # self-transition bias
+switch = np.array([300])
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 
 
@@ -197,7 +197,7 @@ cap = 100000
 
 
 sim_params = product(alphas, gammas, kappas, hs, rho_local, rho_global, number_of_bandits)
-reps = 3 # how many times to run simulation with same params
+reps = 20 # how many times to run simulation with same params
 
 n_sims = alphas.size*kappas.size*gammas.size*hs.size*rho_global.size*rho_local.size*number_of_bandits.size*reps
 
@@ -224,8 +224,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
         T = 2
         npi = na**(T-1)
         ind = np.arange(number_of_bandits.size)[number_of_bandits == nb][0]
-        training_protocol = np.tile(np.arange(nb).repeat(switch[ind]),repeats)
-        # training_protocol = np.concatenate([training_protocol, np.array([nb-1]).repeat(switch)])
+        training_protocol = np.tile(np.arange(2).repeat(switch[ind]),repeats)
 
         TAU = training_protocol.size
 
@@ -253,6 +252,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
         '''           define p(r|s,c)             '''
         
         lambda_H = np.ones([nr,ns])
+        lambda_H[0,:-1] = 1
         lambda_H[-1,-1] = 100
         counts_prior_rewards = np.zeros([nr,nb+1,nc])#np.stack([lambda_H for i in range(nc)],axis=-1)
         
@@ -319,7 +319,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
 
 
         '''       define dummy utility RV p(R=1) '''
-        utility = np.array([0.005, 0.99,0.005]) # np.array([1/nr]*3) #
+        utility = np.array([0.005, 0.99, 0.005]) # np.array([1/nr]*3) #
 
 
         '''   define context obs contingencies '''
@@ -521,13 +521,14 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
                     ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
 
             # ax.set_title(f"{gamma}; Posterior Context; correct in {(100*best_fit).round()}% of trials", fontsize=14, y = 1.05)
-            ax.legend(
-                loc='lower center',
-                bbox_to_anchor=(0.5, -0.8),
-                ncol=data.K+2,
-                framealpha=0,
-                fontsize=20
-            )
+            # ax.legend(
+            #     loc='lower center',
+            #     bbox_to_anchor=(0.5, -0.8),
+            #     ncol=data.K+2,
+            #     framealpha=0,
+            #     fontsize=20
+            # )
+            ax.legend()
             ax.set_ylabel("Posterior Context", fontsize=20)
             ax.set_xlabel("trial", fontsize=20)
             ax.tick_params(axis="x",labelsize=18, rotation = 40)
