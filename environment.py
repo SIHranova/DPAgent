@@ -4,7 +4,6 @@ import seaborn as sns
 import numpy as np
 from scipy.stats import beta
 import matplotlib.pyplot as plt
-from misc import plot_heatmap
 
 class MultiArmedBandit():
 
