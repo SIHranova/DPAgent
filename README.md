@@ -1,12 +1,9 @@
-FOR SARAH:
 
-You should work with the file:
+Code used for paper [PAPER TITLE]. 
 
-HDP_stick_breaking/2_simulate_HDP_MAP.py
+Code base implements a nonparametric contextual structure learning agent, called the NP-BCC performing multiarmed bandit (MAB) simulations.
 
-All the agent code is in agent.py. I do not have a perception class anymore. All beliefs are printed from update_beliefs.py and you can switch that on and off via setting debug=False in the agent class initialization. 
-
-It is set up to run as an ipynb file even though it is a .py file. When you open it in vscode it should have a Run Cell option before every cell. Cells are marked like this:
-
-#%% 
-![Alt text](Picture1.png)
+- Main paper figures can be generated from HDP_IMM_MAB.py
+- NP-BCC agent implementation is in file agent.py
+- The multiarmed bandit environment is implemented in environment.py
+- world.py is a wrapper class that connects agent to environment and is used to run simulations. 

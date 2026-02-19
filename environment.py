@@ -1,4 +1,10 @@
+
+import pandas as pd
+import seaborn as sns
 import numpy as np
+from scipy.stats import beta
+import matplotlib.pyplot as plt
+from misc import plot_heatmap
 
 class MultiArmedBandit():
 
@@ -9,7 +15,9 @@ class MultiArmedBandit():
                  TAU=3,
                  T=2,
                  n_bandits=2,
-                 observation_generation_matrix=None, no=None):
+                 observation_generation_matrix=None, 
+                 no=None,
+                 context_observation_generation_matrix = None):
 
         self.Rho = reward_generation_matrix
         self.B = state_transition_matrix
@@ -19,10 +27,13 @@ class MultiArmedBandit():
         self.rewards = np.zeros([TAU,T],dtype=int)
         self.actions = np.zeros([TAU, T-1],dtype=int)
         self.observations = np.zeros([TAU,T],dtype=int)
+        self.context_observation_generation_matrix = context_observation_generation_matrix
+        self.nco = context_observation_generation_matrix.shape[0]
+        self.context_observations = np.zeros([TAU,T],dtype=int)
 
         self.TAU = TAU
         self.T = T
-        self.nb = n_bandits
+        self.initial_state = n_bandits
 
         if observation_generation_matrix is None:
             self.observation_generation_matrix = np.eye(self.ns)
@@ -57,6 +68,10 @@ class MultiArmedBandit():
         self.observations[tau,t] = np.random.choice(np.arange(self.no), p=self.observation_generation_matrix[:,state])
         return self.observations[tau,t]
     
+    def generate_context_observation(self, t, tau, context):
+
+        self.context_observations[tau,t] = np.random.choice(np.arange(self.nco), p=self.context_observation_generation_matrix[:,context])
+        return self.context_observations[tau,t]
 
     def initialize_hidden_state(self, tau, starting_state=2):
         self.states[tau,0] = starting_state
