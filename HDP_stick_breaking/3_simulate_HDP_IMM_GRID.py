@@ -19,7 +19,7 @@ np.random.seed(2)
 
 
 
-
+#%%
 def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=False,dpi=200, rewards=False,fmt='.2f'):
     
     if not type(data) is list:
@@ -85,7 +85,7 @@ approx_pred_rew = True
 gammas = np.array([850])       # global prior context opening tendency
 alphas = np.array([30])        # local  prior context opening tendency
 kappas = np.array([250])       # self-transition bias
-hs =    np.array([30])         # np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
+hs =    np.array([20,30])         # np.floor(np.exp(np.arange(1,9.5,0.25)))  # np.array([10000])    #
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])      # local prior counts forgetting rate 
 state_unc = False

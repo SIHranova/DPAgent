@@ -1,0 +1,10 @@
+*.csv
+*.png
+*.jpg
+*.xlsx
+*.svg
+*.zip
+
+/HDP_stick_breaking/old/
+/HDP_stick_breaking/paper_images/
+/HDP_stick_breaking/__pycache__/

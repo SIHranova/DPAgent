@@ -182,10 +182,10 @@ number_of_bandits = np.array([2])
 
 
 
-gammas = np.array([1,2,3,4,5,6])       # global prior context opening tendency
+gammas = np.array([1])#,2,3,4,5,6])       # global prior context opening tendency
 switch = np.array([100])
-alphas = np.array([1,2,3,4,5])         # local  prior context opening tendency
-kappas = np.array([1,2,3,4,5,6,7,8,9,10])        # self-transition bias
+alphas = np.array([1])#,2,3,4,5])         # local  prior context opening tendency
+kappas = np.array([1])#,2,3,4,5,6,7,8,9,10])        # self-transition bias
 hs = np.array([10000])
 rho_global = np.array([1])     # global prior counts forgetting rate
 rho_local = np.array([1])
@@ -494,7 +494,7 @@ for alpha, gamma, kappa, h, rho_l, rho_g, na in sim_params:
                 else:
                     ax.vlines(ind,ymin=0,ymax=1.05, color = 'k', linestyle='--', alpha=0.5)
             
-            ax.set_title(f"{alpha},{gamma},{kappa}, fontsize=14, y = 1.05)
+            ax.set_title(f"{alpha},{gamma},{kappa}", fontsize=14, y = 1.05)
             ax.legend(
                 bbox_to_anchor=[1.05,1.05],
                 framealpha=1,
