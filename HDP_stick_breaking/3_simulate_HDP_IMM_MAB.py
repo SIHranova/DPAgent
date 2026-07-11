@@ -47,7 +47,7 @@ def plot_rewards_heatmap(data, file_title=str(0), title=None,vmin=0,vmax=1,save=
         ax.set_axis_off()
 
     fig.suptitle("Learned reward contingencies", fontsize=14, y=1.06, fontweight="bold" )
-
+    # 
   
     if save:
         plt.savefig(file_title + ".png",dpi=300)
