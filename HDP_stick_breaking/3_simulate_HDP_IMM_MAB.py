@@ -10,7 +10,7 @@ import scipy.special as scp
 from itertools import product
 from matplotlib.ticker import MultipleLocator
 from scipy.optimize import curve_fit
-from utils import *
+# from utils import *
 # from misc import *
 from environment import MultiArmedBandit
 from agent import HDP, HDP_IMM, HDP_correct
@@ -230,7 +230,7 @@ def plot_context_posterior(post_context, novel_context, new_context, switch,inse
 
         # optional: draw a box linking inset to main plot
         mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.3")
-
+    plt.show()
     
     # fig.savefig("fig3_posterior_trace"+".svg", dpi=300, bbox_inches='tight')
 
@@ -275,12 +275,12 @@ def plot_context_messages(agent,switch,TAU):
         ax.set_ylim([-4,1.5])
         
     plt.legend(bbox_to_anchor=[1,0.8])
-
+#%%
 # Task setup parameters
 # single agent plots
 plot_rewards = False
 plot_transition_matrix = False
-plot_context = False
+plot_context = True
 plot_context_obs = False
 plot_choice = False
 plot_messages = False
@@ -331,30 +331,28 @@ approx_pred_rew = True
 
 # example 4 armed bandit params
 params_dict = {
-    "number_of_bandits" : np.array([3]), 
-    "switch" : np.array([130]),
-    "gammas" : np.array([900]),       # global prior context opening tendency
-    "alphas" : np.array([25]),        # local  prior context opening tendency
+    "number_of_bandits" : np.array([4]), 
+    "switch" : np.array([300]),
+    "gammas" : np.array([850]),       # global prior context opening tendency
+    "alphas" : np.array([30]),        # local  prior context opening tendency
     "kappas" : np.array([250]),       # self-transition bias
-    "hs"     : np.array([1000]),  # np.floor(np.exp(np.arange(1,9.5,0.25))), # 
+    "hs"     : np.array([10000]),  # np.floor(np.exp(np.arange(1,9.5,0.25))), # 
     "rho_global" : np.array([1]),     # global prior counts forgetting rate
     "rho_local" : np.array([1]),      # local prior counts forgetting rate 
-    "use_template" : np.array([False]),
+    "use_template" : np.array([False,True]),
 }
-
-
 
 
 max_context = 7
 
 
-sim_name = "test_3_actions.csv"#"df_habit_accuracy_certainty.csv"
+sim_name = "test2.csv   "#"df_habit_accuracy_certainty.csv"
 gamma_init = 1000
 cap = 100000
 
 
 sim_params = product(*params_dict.values())
-reps = 200 # how many times to run simulation with same params
+reps = 1 # how many times to run simulation with same params
 
 
 n_sims = 1
@@ -391,6 +389,7 @@ for na, switch, gamma, alpha, kappa, h, rho_l, rho_g, use_template in sim_params
 
         # ind = np.arange(params_dict["number_of_bandits"].size)[params_dict["number_of_bandits"] == nb][0]
         training_protocol = np.tile(np.arange(nb).repeat(switch),repeats)
+        training_protocol = np.concatenate([training_protocol, np.tile(np.arange(nb).repeat(100),3)])
         
         # if h != 10000 and use_template:
         #     print("skipping h=20 with template")
@@ -422,7 +421,7 @@ for na, switch, gamma, alpha, kappa, h, rho_l, rho_g, use_template in sim_params
 
         '''           define p(r|s,c)             '''
         
-        lambda_H = np.ones([nr,ns])
+        lambda_H = np.ones([nr,ns])*5
         lambda_H[0,:-1] = 1
         lambda_H[-1,-1] = 100
         counts_prior_rewards = np.zeros([nr,nb+1,nc])#np.stack([lambda_H for i in range(nc)],axis=-1)
@@ -691,9 +690,11 @@ for na, switch, gamma, alpha, kappa, h, rho_l, rho_g, use_template in sim_params
         df["alpha"] = alpha
         df["kappa"] = kappa
         df["switch"] = switch
-        df["repeated"] = np.array([0]*nb + [1]*nb*(repeats-1)).repeat(switch)
+        repeated = np.ones(training_protocol.size)
+        repeated[0:nb*switch] = 0
+        df["repeated"] = repeated #np.array([0]*nb + [1]*nb*(repeats-1)).repeat(switch)
         df["phase"] = training_protocol
-        df["block"] = np.arange(nb*repeats).repeat(switch)
+        df["block"] = np.concatenate([np.arange(nb*repeats).repeat(switch), np.arange(nb*repeats, nb*repeats + nb*3).repeat(100)])
         df["trial"] = np.arange(TAU)
         df["K"] = agent.K
         uniform = (post_context>0)*np.ones([TAU, max_context])/K[:-1][:,None]
@@ -713,112 +714,29 @@ print(f"\n\n total: {(np.array(learned_correct) >= 0.9).sum()/n_sims}")
 df_big = pd.concat(dfs).reset_index()
 df_big.to_csv(sim_name, index=False)
 
-#%%
 
-
-plot_avg_context_posterior_all = True
-nb = 4
-switch = 100
-h = 1000
-max_context = 7
-df_names = ["new_4_bandits_bad.csv", f"new_4_bandits_good_temp.csv"]
-# cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
-
-ncols = 5
-context_titles = ["Novel Context", "Context 1", "Context 2", "Context 3", "Context 4"]
-
-# fig, axes = plt.subplots(1, ncols, dpi=300, figsize=(ncols*3, 3.3), sharey=True)
-# plt.tight_layout()
-# plt.subplots_adjust(hspace=0.8)
-
-dfs = []
-for name in df_names:
-    dfs.append(pd.read_csv(name))
-
-alphas = ['solid','dotted']
-cols =[["k"]*5,["grey","#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]]
-fig, axes = plt.subplots(1, ncols, dpi=300, figsize=(ncols*3, 3.3), sharey=True)
-plt.tight_layout()
-plt.subplots_adjust(hspace=0.8)
-
-# for name in df_names:
-    # df_big = pd.read_csv(name)
-
-if plot_avg_context_posterior_all:#
-    for dfi, df_big in enumerate(dfs):
-        h = df_big["h"].unique()[0]
-        print(h)
-        post_cols = set([str(el) for el in np.arange(max_context+1)])
-        id_vars = set(df_big.columns).difference(post_cols)
-        # ["index","trial","h","agent","phase","entropy","K", "nb"]
-        print(df_big.shape)
-        # df_big = df_big.query("fit >= 0.9")
-        print(df_big.shape)
-        df = pd.melt(df_big, id_vars=id_vars, var_name="context", value_name="post_context")
-
-        axes[0].set_ylabel("Posterior Context", fontsize=22, labelpad=10)
-
-        n_trials = df_big.query("agent == 1").repeated.to_numpy().size
-        repeated = df_big.query("agent == 1").repeated.to_numpy()
-        # Plot regular contexts in columns 1-4
-        for i in range(0, nb+1):
-            if i==0:
-                print(f'h=={h} & context=="{max_context}" & nb=={nb}')
-                sns.lineplot(
-                    ax=axes[0],
-                    data=df.query(f'h=={h} & context=="{max_context}" & nb=={nb}'),
-                    x="trial", y="post_context", color=cols[dfi][0], errorbar="se")#, linestyle=alphas[dfi]
-                # )
-            else:
-                print(f'h=={h} & context=="{i-1}" & nb=={nb}')  
-                
-                sns.lineplot(
-                    ax=axes[i],
-                    data=df.query(f'h=={h} & context=="{i-1}" & nb=={nb}'),
-                    x="trial", y="post_context", color=cols[dfi][i], errorbar="se")#, linestyle=alphas[dfi]
-                # )
-
-                # display(df.query(f'h=={h} & context=="{i-1}" & nb=={nb}'))
-            axes[i].set_xlabel(r"trial $\tau$", fontsize=22)
-            axes[i].grid(axis="x", which="both", alpha=0.7)
-            axes[i].set_ylim([-0.05,1.05])
-            axes[i].tick_params(axis="x", labelrotation=35, labelsize=20)
-            axes[i].tick_params(axis="y", labelsize=22)
-            # axes[i].xaxis.set_minor_locator(MultipleLocator(switch[j]))
-            axes[i].xaxis.set_major_locator(MultipleLocator(switch*2))   # x-labels every switch[j]*2
-            axes[i].xaxis.set_minor_locator(MultipleLocator(switch))     # grid lines every switch[j]
-        # Hide unused axes
-
-
-# Add context titles above the top row, colored by seaborn palette and larger font
-for col_idx, title in enumerate(context_titles):
-    if col_idx == 0:
-        axes[col_idx].set_title(title, fontsize=25, pad=20, color="grey",fontweight='bold')
-    else:
-        axes[col_idx].set_title(title, fontsize=25, pad=20, color=cols[1][col_idx],fontweight='bold')
-
-
-
-#%%
-# Plot effects of template and habituation
+#%% Plot effects of template and habituation
 nb = 4
 switch = 300
 hs = [40,1000]
-name = f"test3"
+name = "new_table_data"#f"new_4_bandits_templates_and_h40"
 ncols=nb+1
 max_context = 7
-fig_name = f"fig4_cont_{nb}"#name
+fig_name = f"fig4_cont_{nb}" #name
 
 plot_avg_context_posterior_all = True
-
+#%%
 if plot_avg_context_posterior_all:#
 
+    #### conext posterior plot
+    
     alphas = ['solid','dotted']
     cols =[["grey","#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"], ["k"]*5]
     fig, axes = plt.subplots(1, ncols, dpi=300, figsize=(ncols*3, 3.3), sharey=True)
     plt.tight_layout()
     plt.subplots_adjust(hspace=0.8)
     df_big = pd.read_csv(name+".csv")
+
     for hi, h in enumerate(hs):
         post_cols = set([str(el) for el in np.arange(max_context+1)])
         id_vars = set(df_big.columns).difference(post_cols)
@@ -869,19 +787,28 @@ if plot_avg_context_posterior_all:#
         else:
             axes[col_idx].set_title(title, fontsize=25, pad=20, color=cols[0][col_idx],fontweight='bold')
 
-    plt.figure(figsize=(4.5,3),dpi=300)
+#%%    ### mean accuracy plot
+ 
+    fig = plt.figure(figsize=(4.5,4),dpi=300)
     plt.grid()
     df_big["optimal"] = df_big["choice"] == df_big["phase"]
+    # df = df_big.groupby(by=["h","agent"])["optimal"].mean().reset_index()
+    # g = sns.boxplot(data=df, x="h", y="optimal", palette="Greys_r")
     df = df_big.groupby(by=["h","agent","repeated"])["optimal"].mean().reset_index()
-    g = sns.barplot(data=df, x="h",y="optimal",hue="repeated",palette="Greys_r")
+    g = sns.boxplot(data=df.query("repeated==1"), x="h",y="optimal",palette="Greys_r")
+
+    # g = sns.boxplot(data=df.query("repeated=1"), x="h",y="optimal",hue="repeated",palette="Greys_r")
     g.set_ylim([0,1])
-    g.set_ylabel("Mean Accuracy")
-    g.set_xticklabels(["Moderate\nautomatisation","No\nautomatisation"])
+    g.set_ylabel("Mean Accuracy",fontsize=16)
+    g.set_xticklabels(["Moderate\nautomatisation","No\nautomatisation"], fontsize=16)
+    g.set_yticklabels(g.get_yticklabels(), fontsize=14)
+
     handles, labels = g.get_legend_handles_labels()
     g.legend(handles=handles, labels=["New Context", "Familiar Context"], title="")
     g.set_xlabel("")
+    fig.savefig("supp_fig_new.svg")
+#%%    #### context detection benefit plot
 
-    ##########
     cut_off = 0.2
     df = df_big.query(f"fit>{cut_off}")
     # df = df_big.copy().query(f"h==10000 & fit>{cut_off}")
@@ -928,84 +855,27 @@ if plot_avg_context_posterior_all:#
         ax[i].legend().set_title(None)
         ax[i].legend(handles=handles, labels=labels,fontsize=14, loc="upper left")
 
-#%%##########
+#%% print table numbers
+df_big = pd.read_csv("new_table_data.csv")
 
-nb = 4
-switch = 300
-hs = [1000,40]
+df_big["optimal"] = df_big["choice"] == df_big["phase"]
+df_acc = df_big.groupby(["h","template","rep","repeated"])["optimal"].mean().to_frame().reset_index()
+df_acc = df_acc.groupby(["h","template","repeated"]).agg(["mean", "sem"])["optimal"]
+df_acc.columns = ["accuracy_mean", "accuracy_sem"]
 
-df_names = ["test3.csv"]
-# cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
+##### select only posterior probability of currently active context
+df_context = df_big[["h","template","phase","rep","trial","0","1","2","3"]]
+df_context = df_context.melt(id_vars=["h","template","phase","rep","trial"], var_name="context", value_name="context_probability")
+df_context["context"] = df_context["context"].astype(int)
+df_context.loc[df_context["phase"] != df_context["context"], "context_probability"] = np.nan
 
-ncols = 5
-context_titles = ["Novel Context", "Context 1", "Context 2", "Context 3", "Context 4"]
+#### calculate mean active context probabiity per agent and then, mean and SEM of the sample
+df_context = df_context.groupby(["h","template","rep"])["context_probability"].mean()
+df_context = df_context.groupby(["h","template"]).agg(["mean", "sem"])
+df_context.columns = ["context_mean", "context_sem"]
 
-
-
-# for name in df_names:
-    # df_big = pd.read_csv(name)
-
-if plot_avg_context_posterior_all:#
-    alphas = ['solid','dotted']
-    cols =[["k"]*5,["grey","#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]]
-    fig, axes = plt.subplots(1, ncols, dpi=300, figsize=(ncols*3, 3.3), sharey=True)
-    plt.tight_layout()
-    plt.subplots_adjust(hspace=0.8)
-    for hi, h in enumerate(hs):
-        df 
-        post_cols = set([str(el) for el in np.arange(max_context+1)])
-        id_vars = set(df_big.columns).difference(post_cols)
-        # ["index","trial","h","agent","phase","entropy","K", "nb"]
-        print(df_big.shape)
-        # df_big = df_big.query("fit >= 0.9")
-        print(df_big.shape)
-        df = pd.melt(df_big, id_vars=id_vars, var_name="context", value_name="post_context")
-
-        axes[0].set_ylabel("Posterior Context", fontsize=22, labelpad=10)
-
-        n_trials = df_big.query("agent == 1").repeated.to_numpy().size
-        repeated = df_big.query("agent == 1").repeated.to_numpy()
-        # Plot regular contexts in columns 1-4
-        for i in range(0, nb+1):
-            if i==0:
-                print(f'h=={h} & context=="{max_context}" & nb=={nb}')
-                sns.lineplot(
-                    ax=axes[0],
-                    data=df.query(f'h=={h} & context=="{max_context}" & nb=={nb}'),
-                    x="trial", y="post_context", color=cols[hi][0], errorbar="se")#, linestyle=alphas[hi]
-                # )
-            else:
-                print(f'h=={h} & context=="{i-1}" & nb=={nb}')  
-                
-                sns.lineplot(
-                    ax=axes[i],
-                    data=df.query(f'h=={h} & context=="{i-1}" & nb=={nb}'),
-                    x="trial", y="post_context", color=cols[hi][i], errorbar="se")#, linestyle=alphas[hi]
-                # )
-
-                # display(df.query(f'h=={h} & context=="{i-1}" & nb=={nb}'))
-            axes[i].set_xlabel(r"trial $\tau$", fontsize=22)
-            axes[i].grid(axis="x", which="both", alpha=0.7)
-            axes[i].set_ylim([-0.05,1.05])
-            axes[i].tick_params(axis="x", labelrotation=35, labelsize=20)
-            axes[i].tick_params(axis="y", labelsize=22)
-            # axes[i].xaxis.set_minor_locator(MultipleLocator(switch[j]))
-            axes[i].xaxis.set_major_locator(MultipleLocator(switch*2))   # x-labels every switch[j]*2
-            axes[i].xaxis.set_minor_locator(MultipleLocator(switch))     # grid lines every switch[j]
-        # Hide unused axes
-
-
-# Add context titles above the top row, colored by seaborn palette and larger font
-for col_idx, title in enumerate(context_titles):
-    if col_idx == 0:
-        axes[col_idx].set_title(title, fontsize=25, pad=20, color="grey",fontweight='bold')
-    else:
-        axes[col_idx].set_title(title, fontsize=25, pad=20, color=cols[1][col_idx],fontweight='bold')
-
-# )
-
-
-# fig.savefig(f"habit_h{h}-1000.svg", dpi=300, bbox_inches='tight')
+df = pd.concat([df_context, df_acc.loc[:,:,1]],axis=1).round(3)
+df.to_csv("summary_table.csv")
 
 #%% Plot average context accuracy
 plot_avg_context_accuracy = True
@@ -1058,11 +928,11 @@ if plot_avg_context_accuracy:
 
 
 #%% Plot individual context posterior
-nb = 3
-switch = 100
+nb = 4
+switch = 300
 h = 10000
-name = f"new_{nb}_bandits_good"
-fig_name = f"fig4_cont_{nb}"#name
+name = "test"#f"new_{nb}_bandits_good"
+# fig_name = f"fig4_cont_{nb}"#name
 # panel_labels = ["C"]
 df_big = pd.read_csv(name+".csv")
 plot_avg_context_posterior_all = True
@@ -1076,6 +946,7 @@ if plot_avg_context_posterior_all:#
     # print(cleaned/total)
     
     df = pd.melt(df_big, id_vars=id_vars, var_name="context", value_name="post_context")
+    display(df.head())
     cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
     # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
 
@@ -1403,6 +1274,7 @@ if  plot_avg_entropy_accuracy_given_h:
 
     fig.savefig("habit_entropy_accuracy.svg",dpi=300,bbox_inches='tight')
 #%% Plot template benefit
+
 plot_template_benefit = True
 switch = 300
 if plot_template_benefit:
@@ -1465,285 +1337,88 @@ if plot_template_benefit:
             # )
 
         # fig.savefig("fig8_temp_benefit.svg")
-#%% OLD Empirical CDF of when contexts were opened
-df = pd.read_csv("4_bandits_good_h70.csv")
 
-first_nonzero_trials = {}
+#%% OLD SBDM poster figure
 
-cols = ['0', '1', '2','3']  # columns to scan for first nonzero
-rename_map = {c: f'opened_{c}' for c in cols}
-
-def first_nonzero_trial(sub, value_col):
-    # returns the trial value at the first nonzero in value_col, or NaN if none
-    m = sub[value_col].ne(0) & sub[value_col].notna()
-    if m.any():
-        first_idx = m.idxmax()               # index of first True within the group
-        return sub.loc[first_idx, 'trial']   # corresponding trial value
-    return np.nan
-
-out = (
-    df
-    .groupby(['agent'])
-    .apply(lambda g: pd.Series({c: first_nonzero_trial(g, c) for c in cols}))
-    .reset_index()
-    .rename(columns=rename_map)
-)
-# out = pd.melt(out, id_vars="agent", )
-fig, ax = plt.subplots(1,4, figsize=(12,3))
-plt.tight_layout()
-for ci, col in enumerate(cols):
-    sns.ecdfplot(data=out[rename_map[col]],ax=ax[ci])
-    # sns.histplot(data=out[rename_map[col]],ax=ax[ci], bins= 200)
-    ax[ci].set_xticks(np.arange(0,2500,300))
-    ax[ci].tick_params(axis="x", labelrotation=45)
-    ax[ci].grid(axis="x", alpha=0.7)
-    ax[ci].grid(axis="y", alpha=0.7)
-
-
-
-
-#%% OLD Fit sigmoids
-
-nb = 3
+plot_avg_context_posterior_all = True
+nb = 4
 switch = 100
-h = 10000
-title = f"rand2.csv"#"{nb}_bandits_good.csv"
+h = 1000
+max_context = 7
+df_names = ["new_4_bandits_bad.csv", f"new_4_bandits_good_temp.csv"]
+# cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
 
-######
+ncols = 5
+context_titles = ["Novel Context", "Context 1", "Context 2", "Context 3", "Context 4"]
 
-# Define sigmoid function
-def sigmoid(x, L, x0, k, b):
-    return L / (1 + np.exp(-k*(x-x0))) + b
+# fig, axes = plt.subplots(1, ncols, dpi=300, figsize=(ncols*3, 3.3), sharey=True)
+# plt.tight_layout()
+# plt.subplots_adjust(hspace=0.8)
 
+dfs = []
+for name in df_names:
+    dfs.append(pd.read_csv(name))
 
+alphas = ['solid','dotted']
+cols =[["k"]*5,["grey","#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]]
+fig, axes = plt.subplots(1, ncols, dpi=300, figsize=(ncols*3, 3.3), sharey=True)
+plt.tight_layout()
+plt.subplots_adjust(hspace=0.8)
 
-# def fit_sigmoids(nb,switch, h, title):
-df_big = pd.read_csv(f"{nb}_bandits_good.csv")
-post_cols = set([str(col_name) for col_name in np.arange(max_context+1)])
-id_vars = set(df_big.columns).difference(post_cols)
+# for name in df_names:
+    # df_big = pd.read_csv(name)
 
-df = pd.melt(df_big, id_vars=id_vars, var_name="context", value_name="post_context")
-df["context"] = df["context"].astype(int)
-df = df.query(f"context <={nb}")
+if plot_avg_context_posterior_all:#
+    for dfi, df_big in enumerate(dfs):
+        h = df_big["h"].unique()[0]
+        print(h)
+        post_cols = set([str(el) for el in np.arange(max_context+1)])
+        id_vars = set(df_big.columns).difference(post_cols)
+        # ["index","trial","h","agent","phase","entropy","K", "nb"]
+        print(df_big.shape)
+        # df_big = df_big.query("fit >= 0.9")
+        print(df_big.shape)
+        df = pd.melt(df_big, id_vars=id_vars, var_name="context", value_name="post_context")
 
+        axes[0].set_ylabel("Posterior Context", fontsize=22, labelpad=10)
 
-
-# Prepare to store fit results
-fit_results = []
-
-# Group by agent, repeated, context
-grouped = df.groupby(["agent", "repeated", "context"])
-for (agent, repeated, context), group in grouped:
-
-    gr = group.query(f"trial > {switch*(repeated*nb + context - 1)} & trial < {switch*(repeated*nb + context + 1)}")
-    # print(agent, context, repeated)
-    # print(gr["trial"].values)
-    x = gr["trial"].values - (nb*repeated + context)*switch
-    # print(x)
-    y = np.nan_to_num(gr["post_context"].values)
-
-    # Initial parameter guess: L=1, x0=median(x), k=1, b=0
-    p0 = [1, np.median(x), 1, 0]
-    try:
-        popt, pcov = curve_fit(sigmoid, x, y, p0, maxfev=10000)
-        # Store results
-        fit_results.append({
-            "agent": agent,
-            "repeated": repeated,
-            "context": context,
-            "L": popt[0],
-            "x0": popt[1],
-            "k": popt[2],
-            "b": popt[3]
-        })
-    except RuntimeError:
-        # If fit fails, store NaNs
-        fit_results.append({
-            "agent": agent,
-            "repeated": repeated,
-            "context": context,
-            "L": np.nan,
-            "x0": np.nan,
-            "k": np.nan,
-            "b": np.nan
-        })
-    
-fit_df = pd.DataFrame(fit_results)
-fit_df = fit_df.set_index(["agent","context","repeated"])
-    # return fit_df, df
-
-
-
-
-
-######
-# fit_df, df  = fit_sigmoids(nb, switch, h, title) 
-
-## Plot an individual fits
-agent_id = 1
-context_id = 0  # context is a string after melt
-repeated_val = 1
-
-# def plot_single_sigmoid(agent_id, context_id, repeated_val):
-subset = df[(df['agent'] == agent_id) & (df['context'] == context_id) & (df['repeated'] == repeated_val)]
-data = subset.query(f"trial > {switch*(repeated_val*nb + context_id - 1)} & trial < {switch*(repeated_val*nb + context_id + 1)}")
-data["trial"] = data["trial"] - (nb*repeated_val + context_id)*switch
-# Calculate sigmoid with inferred parameters
-L, x0, k, b = fit_df.loc[agent_id, context_id, repeated_val]
-x_fit = np.linspace(np.min(data.trial), np.max(data.trial), 200)
-y_fit = L / (1 + np.exp(-k * (x_fit - x0))) + b
-
-plt.scatter(data["trial"], data["post_context"], color='blue', label='Original Data')
-plt.plot(x_fit, y_fit, color='red', label='Inferred Sigmoid')
-plt.title(f'Agent {agent_id}, Context {context_id}, Repeated {repeated_val}')  # Customize as needed
-plt.show()
-# plot_single_sigmoid(agent_id, context_id, repeated_val)
-
-plot_df = fit_df.query(f"context >=1 & context <{nb}")
-# plot_sigmoid_params(plot_df)
-
-# def plot_sigmoid_params(plot_df, plot_k = True, plot_L = True, plot_x0 = True, plot_b = True):
-# if plot_L:
-plt.figure(dpi=100)
-sns.stripplot(data=plot_df.reset_index(), x="context", y="L", hue="repeated", dodge=True)
-sns.boxplot(data=plot_df.reset_index(), x="context", showfliers=False, y="L", hue="repeated")
-
-# if plot_x0:
-plt.figure(dpi=100)
-sns.stripplot(data=plot_df.reset_index(), x="context", y="x0", hue="repeated",dodge=True)
-sns.boxplot(data=plot_df.reset_index(), x="context", showfliers=False, y="x0", hue="repeated")
-
-# if plot_b:
-plt.figure(dpi=100)
-sns.stripplot(data=plot_df.reset_index(), x="context", y="b", hue="repeated",dodge=True)
-sns.boxplot(data=plot_df.reset_index(), x="context", showfliers=False, y="b", hue="repeated")
-
-# if plot_k:
-plt.figure(dpi=100)
-sns.stripplot(data=plot_df.reset_index(), x="context", y="k", hue="repeated", dodge=True)
-g = sns.boxplot(data=plot_df.reset_index(), x="context", showfliers=False, y="k", hue="repeated")
-g.set_ylim(0,10)
-
-
-
-#%% OLD plot context posterior for templates
-
-if plot_avg_context_posterior_template:
-    df = pd.melt(df_big, id_vars=["index","h","agent","phase","entropy","K", "nb"], var_name="context", value_name="post_context")
-    cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
-    # cols = ["tab10:blue", "tab10:orange", "tab10:green", "tab10:red"]
-    number_of_bandits = params_dict["number_of_bandits"]
-    switch = params_dict["switch"]
-
-    ncols = 5
-    nrows = number_of_bandits.size
-
-    context_titles = ["Novel Context", "Context 1", "Context 2", "Context 3", "Context 4"]
-
-    for h in hs:
-        fig, axes = plt.subplots(number_of_bandits.size, ncols, dpi=300, figsize=(ncols*3, nrows*3), sharey=True)
-        plt.tight_layout()
-        plt.subplots_adjust(hspace=0.6)
-
-        for j in range(number_of_bandits.size):
-            if number_of_bandits.size == 1:
-                axes = np.array([axes])
-            axes[j,0].set_ylabel("Posterior Context", fontsize=22, labelpad=10)
-
-            # Plot regular contexts in columns 1-4
-            for i in range(0, number_of_bandits[j]+1):
-                if i==0:
-                    sns.lineplot(
-                        ax=axes[j,0],
-                        data=df.query(f"h=={h} & context=={max_context+1} & nb=={number_of_bandits[j]}"),
-                        x="index", y="post_context", color="grey", errorbar="se"
-                    )
-                else:
-                    sns.lineplot(
-                        ax=axes[j,i],
-                        data=df.query(f"h=={h} & context=={i-1} & nb=={number_of_bandits[j]}"),
-                        x="index", y="post_context", color=cols[i-1], errorbar="se"
-                    )
-                axes[j,i].grid(axis="x", which="both", alpha=0.7)
-                axes[j,i].set_xlabel("trial", fontsize=22)
-                axes[j,i].set_ylim([-0.05,1.05])
-                axes[j,i].tick_params(axis="x", labelrotation=35, labelsize=20)
-                axes[j,i].tick_params(axis="y", labelsize=22)
-                # axes[j,i].xaxis.set_minor_locator(MultipleLocator(switch[j]))
-                axes[j,i].xaxis.set_major_locator(MultipleLocator(switch[j]*2))   # x-labels every switch[j]*2
-                axes[j,i].xaxis.set_minor_locator(MultipleLocator(switch[j]))     # grid lines every switch[j]
-            # Hide unused axes
-            for ax in axes[j,number_of_bandits[j]+1:]:
-                ax.axis('off')
-
-        # Add context titles above the top row, colored by seaborn palette and larger font
-        for col_idx, title in enumerate(context_titles):
-            ax = axes[0, col_idx]
-            if col_idx == 0:
-                ax.set_title(title, fontsize=25, pad=20, color="grey")
+        n_trials = df_big.query("agent == 1").repeated.to_numpy().size
+        repeated = df_big.query("agent == 1").repeated.to_numpy()
+        # Plot regular contexts in columns 1-4
+        for i in range(0, nb+1):
+            if i==0:
+                print(f'h=={h} & context=="{max_context}" & nb=={nb}')
+                sns.lineplot(
+                    ax=axes[0],
+                    data=df.query(f'h=={h} & context=="{max_context}" & nb=={nb}'),
+                    x="trial", y="post_context", color=cols[dfi][0], errorbar="se")#, linestyle=alphas[dfi]
+                # )
             else:
-                ax.set_title(title, fontsize=25, pad=20, color=cols[col_idx-1])
+                print(f'h=={h} & context=="{i-1}" & nb=={nb}')  
+                
+                sns.lineplot(
+                    ax=axes[i],
+                    data=df.query(f'h=={h} & context=="{i-1}" & nb=={nb}'),
+                    x="trial", y="post_context", color=cols[dfi][i], errorbar="se")#, linestyle=alphas[dfi]
+                # )
+
+                # display(df.query(f'h=={h} & context=="{i-1}" & nb=={nb}'))
+            axes[i].set_xlabel(r"trial $\tau$", fontsize=22)
+            axes[i].grid(axis="x", which="both", alpha=0.7)
+            axes[i].set_ylim([-0.05,1.05])
+            axes[i].tick_params(axis="x", labelrotation=35, labelsize=20)
+            axes[i].tick_params(axis="y", labelsize=22)
+            # axes[i].xaxis.set_minor_locator(MultipleLocator(switch[j]))
+            axes[i].xaxis.set_major_locator(MultipleLocator(switch*2))   # x-labels every switch[j]*2
+            axes[i].xaxis.set_minor_locator(MultipleLocator(switch))     # grid lines every switch[j]
+        # Hide unused axes
 
 
-
-    # Add row titles to the left of each row, but keep y-labels for subplots
-    ax = axes[row_idx, 0]
-    # Add a second y-label using ax.annotate for the row title
-    ax.annotate(
-        title,
-        xy=(-0.2, 0.5),
-        xycoords='axes fraction',
-        fontsize=25,
-        color='black',
-        ha='right',
-        va='center',
-        rotation=0,
-        annotation_clip=False,
-        xytext=(-60, 0),
-        textcoords='offset points'
-    )
-
-
-#%% OLD Plot habit benefit
-
-plot_habit_benefit = True
-if plot_habit_benefit:
-    for cut_off in [0.2,0.9]:
-        df = pd.read_csv("df_habit_template_benefit_11.csv").query(f"template == 0 & fit>{cut_off} & h>20")
-        df = df.query(f"template == 0 & fit>{cut_off}")
-        print(df.template.unique())
-        print(df.h.unique())
-        print(df.query("h==20")["agent"].nunique())
-        print(df.query("h==30")["agent"].nunique())        
-        print(df.query("h==10000")["agent"].nunique())
-
-
-        masks = [(df[str(context)] >= 0.75) & (df["phase"] == context) for context in df["phase"].unique()]
-
-        subset = df[masks[0] | masks[1] | masks[2] | masks[3]]
-        keys = ["h","template","agent", "repeated", "phase","block"]
-
-        all_idx = df.groupby(keys).size().index  # every group, even if empty after filtering
-
-        df = (
-            subset.groupby(keys)["trial_n"].min()  # first matching trial within each present group
-            .reindex(all_idx)
-            .reset_index(name="first_trial"))                      # add missing groups as NaN)
-
-        df["first_trial"] = df["first_trial"].fillna(switch)
-        df = df.query("~(phase == 0 & repeated == 0)")
-        df["h"] = df["h"].astype("category")
-        df["phase"] += 1
-        fig, ax = plt.subplots(1,2, figsize=(8,3.2))
-        plt.subplots_adjust(wspace=0.4)
-
-        for i in range(2):
-            sns.barplot(ax=ax[i], data=df.query(f"repeated == {i}"), x="phase", y="first_trial", palette="grey", hue="h", edgecolor="black")
-            ax[i].grid()
-            ax[i].set_ylabel(r"First trial where $p > 0.75$", fontsize=16)
-            ax[i].set_ylim([0,200])
-            ax[i].set_title(titles[i], fontsize=16)
-            # ax[i].set_xticklabels([i for i in range(1,5)])
-            ax[i].set_xlabel("Context",fontsize=16)
+# Add context titles above the top row, colored by seaborn palette and larger font
+for col_idx, title in enumerate(context_titles):
+    if col_idx == 0:
+        axes[col_idx].set_title(title, fontsize=25, pad=20, color="grey",fontweight='bold')
+    else:
+        axes[col_idx].set_title(title, fontsize=25, pad=20, color=cols[1][col_idx],fontweight='bold')
 
 

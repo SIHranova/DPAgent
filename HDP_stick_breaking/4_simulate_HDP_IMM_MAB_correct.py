@@ -10,7 +10,6 @@ import scipy.special as scp
 from itertools import product
 from matplotlib.ticker import MultipleLocator
 from scipy.optimize import curve_fit
-from utils import *
 # from misc import *
 from environment import MultiArmedBandit
 from agent import HDP, HDP_IMM, HDP_correct, HDP_IMM_correct
@@ -294,7 +293,7 @@ plot_avg_context_accuracy = False
 plot_habit_benefit = False
 plot_template_benefit = False
 use_context_obs = False
-debug = False
+debug = True
 dpi = 100
 
 repeats = 2
@@ -302,38 +301,26 @@ repeats = 2
 approx_pred_pol = True  # refers to whether digamma is used or not
 approx_pred_rew = True
 
-# example 2 armed bandit graph
-# params_dict = {
-#     "number_of_bandits" : np.array([3]), 
-#     "switch" : np.array([100]),
-#     "gammas" : np.array([900]),       # global prior context opening tendency
-#     "alphas" : np.array([25]),        # local  prior context opening tendency
-#     "kappas" : np.array([250]),       # self-transition bias
-#     "hs"     : np.array([10000]),     # np.floor(np.exp(np.arange(1,9.5,0.25))), # 
-#     "rho_global" : np.array([1]),     # global prior counts forgetting rate
-#     "rho_local" : np.array([1]),      # local prior counts forgetting rate 
-#     "use_template" : np.array([False]),
-# }
 
-# # habit simulations
 params_dict = {
     "number_of_bandits" : np.array([2]), 
     "switch" : np.array([100]),
-    "gammas" : np.array([900]),       # global prior context opening tendency
-    "alphas" : np.array([20]),        # local  prior context opening tendency
-    "kappas" : np.array([250]),       # self-transition bias
-    "hs"     : np.array([1000]),       #np.floor(np.exp(np.arange(1,9.5,0.25))), # np.array([10000])
+    "gammas" : np.array([3]),       # global prior context opening tendency
+    "alphas" : np.array([3]),        # local  prior context opening tendency
+    "kappas" : np.array([100]),       # self-transition bias
+    "hs"     : np.array([10000]),       #np.floor(np.exp(np.arange(1,9.5,0.25))), # np.array([10000])
     "rho_global" : np.array([1]),     # global prior counts forgetting rate
     "rho_local" : np.array([1]),      # local prior counts forgetting rate 
     "use_template" : np.array([False]),
 }
 
 
+
 max_context = 7
 
 
-sim_name = "rand.csv"#"df_habit_accuracy_certainty.csv"
-gamma_init = 1000
+sim_name = "correct.csv"#"df_habit_accuracy_certainty.csv"
+gamma_init = 1
 cap = 100000
 
 
@@ -535,7 +522,7 @@ for na, switch, gamma, alpha, kappa, h, rho_l, rho_g, use_template in sim_params
                             no=no)
 
 
-        agent = HDP_IMM_correct(lambda_H = lambda_H,
+        agent = HDP_correct(lambda_H = lambda_H,
                     TAU=TAU,
                     T=T,
                     gamma=gamma,
@@ -639,6 +626,10 @@ for na, switch, gamma, alpha, kappa, h, rho_l, rho_g, use_template in sim_params
         if plot_context:
             plot_context_posterior(post_context, novel_context, new_context, switch,inset=False)
 
+            fig, axes = plt.subplots(1,agent.K)
+
+            for ai,ax in enumerate(axes):
+                sns.heatmap(ax=ax, data=agent.q_z[:switch*nb,0,ai,:],vmin=0, vmax=1)
         if plot_messages:
             plot_context_messages(agent, switch, TAU)
 

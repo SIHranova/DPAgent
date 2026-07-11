@@ -1503,7 +1503,7 @@ class HDP_IMM():
             # else:
             #     current_context = np.argmax(q_c[:self.K])            
 
-            if q_c[self.K] >= 0.5: #if np.any(self.posterior_context[tau,:,self.K] >= 0.5): # 
+            if q_c[self.K] >= 0.5 and self.K < (self.max_context-1): #if np.any(self.posterior_context[tau,:,self.K] >= 0.5): # 
                 current_context = self.K
             else: 
                 current_context = np.argmax(q_c[:self.K])
@@ -2384,7 +2384,6 @@ class HDP_IMM_correct():
         self.actions[tau,t] = chosen_action
         
         return chosen_action
-
 
 
 class HDP_correct():
